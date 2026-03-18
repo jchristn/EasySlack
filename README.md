@@ -34,20 +34,6 @@ For the current version of `EasySlack`, the runtime only needs:
 - a **bot token** starting with `xoxb-`
 - an **app-level token** starting with `xapp-`
 
-### Setup Order
-
-Use this order. It reflects the working configuration for this repository:
-
-1. Create the Slack app
-2. Add OAuth scopes
-3. Enable **Socket Mode** under **Settings**
-4. Enable **Event Subscriptions** under **Features**
-5. Confirm Slack shows:
-   - `Socket Mode is enabled. You won't need to specify a Request URL.`
-6. Add bot events such as `message.channels`
-7. Install or reinstall the app to the workspace
-8. Invite the app to the channels where you want it to operate
-
 ### 1. Basic Information
 
 After the app is created, open **Basic Information**.
@@ -70,6 +56,18 @@ What they are for:
 
 `EasySlack` does not currently use those values directly at runtime, but you may need them later if you add distributed OAuth installs, HTTP-delivered Events API, slash commands, or interactivity.
 
+While still on **Basic Information**, find **App-Level Tokens** and click **Generate Token and Scopes**.
+
+Create an app-level token with:
+
+- `connections:write`
+
+Slack will issue a token starting with `xapp-`.
+
+Use that value as:
+
+- `SlackAuthMaterial.AppToken`
+
 ### 2. Set The App Icon
 
 Still under **Basic Information**, go to **Display Information** and upload the app icon.
@@ -79,7 +77,19 @@ Recommended:
 - use a square PNG
 - use an icon that remains readable at small sizes
 
-### 3. Add OAuth Scopes
+### 3. Enable Socket Mode
+
+Open **Socket Mode** under **Settings** and enable it.
+
+If you do not see **Socket Mode**, the app is likely not the right app type for this workflow. In practice, the cleanest fix is usually to create a fresh modern Slack app and configure it again from scratch.
+
+Socket Mode means:
+
+- Slack does not send events to your public web server
+- your app opens an authenticated WebSocket connection to Slack
+- Slack delivers Events API payloads over that WebSocket
+
+### 4. Add OAuth Scopes
 
 Open **OAuth & Permissions** and add these **Bot Token Scopes**:
 
@@ -129,33 +139,7 @@ Important:
 
 - After changing scopes, click **Reinstall to Workspace** or the new scopes will not take effect.
 
-### 4. Enable Socket Mode
-
-Open **Socket Mode** under **Settings** and enable it.
-
-If you do not see **Socket Mode**, the app is likely not the right app type for this workflow. In practice, the cleanest fix is usually to create a fresh modern Slack app and configure it again from scratch.
-
-Socket Mode means:
-
-- Slack does not send events to your public web server
-- your app opens an authenticated WebSocket connection to Slack
-- Slack delivers Events API payloads over that WebSocket
-
-### 5. Generate The App-Level Token
-
-Go back to **Basic Information**, find **App-Level Tokens**, and click **Generate Token and Scopes**.
-
-Create an app-level token with:
-
-- `connections:write`
-
-Slack will issue a token starting with `xapp-`.
-
-Use that value as:
-
-- `SlackAuthMaterial.AppToken`
-
-### 6. Enable Event Subscriptions
+### 5. Enable Event Subscriptions
 
 Open **Event Subscriptions** under **Features** and enable them.
 
@@ -186,7 +170,7 @@ Important distinction:
 - `app_mention` is an **event subscription**, not a scope
 - `app_mentions:read` is a **scope**
 
-### 7. Install Or Reinstall The App
+### 6. Install Or Reinstall The App
 
 Under **OAuth & Permissions**, click **Install to Workspace** or **Reinstall to Workspace**.
 
@@ -208,7 +192,7 @@ Use that value as:
 
 - `SlackAuthMaterial.BotToken`
 
-### 8. Invite The App To Conversations
+### 7. Invite The App To Conversations
 
 Installing the app gives it credentials, but it does not automatically make the app a member of every conversation.
 
