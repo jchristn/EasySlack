@@ -46,11 +46,11 @@ namespace EasySlackConsole
                     case "validate":
                         await ValidateAsync().ConfigureAwait(false);
                         break;
-                    case "channel send":
-                        await SendMessageToChannelAsync().ConfigureAwait(false);
-                        break;
                     case "user send":
                         await SendMessageToUserAsync().ConfigureAwait(false);
+                        break;
+                    case "channel send":
+                        await SendMessageToChannelAsync().ConfigureAwait(false);
                         break;
                     case "channel sub":
                         await SubscribeToChannelAsync().ConfigureAwait(false);
@@ -81,8 +81,8 @@ namespace EasySlackConsole
             Console.WriteLine("  q              Quit");
             Console.WriteLine("  ?/help         Show menu");
             Console.WriteLine("  validate       Validate connectivity");
-            Console.WriteLine("  channel send   Send to a channel");
             Console.WriteLine("  user send      Send to a user");
+            Console.WriteLine("  channel send   Send to a channel");
             Console.WriteLine("  channel sub    Subscribe to a channel in the background");
             Console.WriteLine("  channel unsub  Stop the active channel subscription");
             Console.WriteLine("  status         Show current subscription status");

@@ -172,7 +172,7 @@ Important distinction:
 
 ### 6. Install Or Reinstall The App
 
-Under **OAuth & Permissions**, click **Install to Workspace** or **Reinstall to Workspace**.
+In the left navigation under **Settings**, click **Install App**, then click **Install to Workspace** or **Reinstall to Workspace**.
 
 After approval, Slack generates the bot token shown as:
 
