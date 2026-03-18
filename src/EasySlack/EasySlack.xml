@@ -1,0 +1,684 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>EasySlack</name>
+    </assembly>
+    <members>
+        <member name="T:EasySlack.AsyncEventHandler`1">
+            <summary>
+            Represents an asynchronous event handler.
+            </summary>
+            <typeparam name="TEventArgs">The event arguments type.</typeparam>
+            <param name="sender">The event source.</param>
+            <param name="eventArgs">The event arguments.</param>
+            <returns>A task representing the asynchronous handler invocation.</returns>
+        </member>
+        <member name="T:EasySlack.Internal.IManagedWebSocket">
+            <summary>
+            Provides an abstraction over a client WebSocket for testability.
+            </summary>
+        </member>
+        <member name="P:EasySlack.Internal.IManagedWebSocket.State">
+            <summary>
+            Gets the current WebSocket state.
+            </summary>
+        </member>
+        <member name="M:EasySlack.Internal.IManagedWebSocket.ConnectAsync(System.Uri,System.Threading.CancellationToken)">
+            <summary>
+            Connects to the supplied URI.
+            </summary>
+            <param name="uri">The target URI.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when connected.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.IManagedWebSocket.ReceiveAsync(System.ArraySegment{System.Byte},System.Threading.CancellationToken)">
+            <summary>
+            Receives data from the WebSocket.
+            </summary>
+            <param name="buffer">The receive buffer.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The receive result.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.IManagedWebSocket.SendTextAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Sends a text message.
+            </summary>
+            <param name="text">The text to send.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when the send finishes.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.IManagedWebSocket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Closes the WebSocket.
+            </summary>
+            <param name="closeStatus">The close status.</param>
+            <param name="statusDescription">The close description.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when the close finishes.</returns>
+        </member>
+        <member name="T:EasySlack.Internal.IManagedWebSocketFactory">
+            <summary>
+            Creates managed WebSocket instances.
+            </summary>
+        </member>
+        <member name="M:EasySlack.Internal.IManagedWebSocketFactory.Create">
+            <summary>
+            Creates a new managed WebSocket.
+            </summary>
+            <returns>The managed WebSocket.</returns>
+        </member>
+        <member name="T:EasySlack.Internal.ManagedClientWebSocket">
+            <summary>
+            Adapts <see cref="T:System.Net.WebSockets.ClientWebSocket"/> to <see cref="T:EasySlack.Internal.IManagedWebSocket"/>.
+            </summary>
+        </member>
+        <member name="P:EasySlack.Internal.ManagedClientWebSocket.State">
+            <summary>
+            Gets the current WebSocket state.
+            </summary>
+        </member>
+        <member name="M:EasySlack.Internal.ManagedClientWebSocket.ConnectAsync(System.Uri,System.Threading.CancellationToken)">
+            <summary>
+            Connects to the supplied URI.
+            </summary>
+            <param name="uri">The target URI.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when connected.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.ManagedClientWebSocket.ReceiveAsync(System.ArraySegment{System.Byte},System.Threading.CancellationToken)">
+            <summary>
+            Receives data from the WebSocket.
+            </summary>
+            <param name="buffer">The receive buffer.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The receive result.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.ManagedClientWebSocket.SendTextAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Sends a text message.
+            </summary>
+            <param name="text">The text to send.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when the send finishes.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.ManagedClientWebSocket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Closes the WebSocket.
+            </summary>
+            <param name="closeStatus">The close status.</param>
+            <param name="statusDescription">The close description.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when the close finishes.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.ManagedClientWebSocket.Dispose">
+            <summary>
+            Releases the WebSocket resources.
+            </summary>
+        </member>
+        <member name="T:EasySlack.Internal.ManagedClientWebSocketFactory">
+            <summary>
+            Creates <see cref="T:EasySlack.Internal.ManagedClientWebSocket"/> instances.
+            </summary>
+        </member>
+        <member name="M:EasySlack.Internal.ManagedClientWebSocketFactory.Create">
+            <summary>
+            Creates a new managed WebSocket.
+            </summary>
+            <returns>The managed WebSocket.</returns>
+        </member>
+        <member name="T:EasySlack.Internal.SocketModeEnvelopeProcessor">
+            <summary>
+            Parses Socket Mode envelopes and dispatches recognized events.
+            </summary>
+        </member>
+        <member name="M:EasySlack.Internal.SocketModeEnvelopeProcessor.ProcessAsync(System.String,System.Func{System.String,System.Threading.CancellationToken,System.Threading.Tasks.Task},System.Func{EasySlack.SlackMessageReceivedEventArgs,System.Threading.CancellationToken,System.Threading.Tasks.Task},System.Func{EasySlack.SlackDisconnectedEventArgs,System.Threading.CancellationToken,System.Threading.Tasks.Task},System.Func{EasySlack.SlackActionRequiredEventArgs,System.Threading.CancellationToken,System.Threading.Tasks.Task},System.Threading.CancellationToken)">
+            <summary>
+            Processes a raw Socket Mode payload.
+            </summary>
+            <param name="json">The raw JSON payload.</param>
+            <param name="acknowledgeAsync">Acknowledges the envelope when required.</param>
+            <param name="onMessageAsync">Invoked for recognized message events.</param>
+            <param name="onDisconnectedAsync">Invoked for disconnect envelopes.</param>
+            <param name="onActionRequiredAsync">Invoked for operator-attention events.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when processing finishes.</returns>
+        </member>
+        <member name="T:EasySlack.ISlackConnector">
+            <summary>
+            Defines the public API surface for a Slack connector.
+            </summary>
+        </member>
+        <member name="P:EasySlack.ISlackConnector.Logger">
+            <summary>
+            Gets or sets the diagnostic logger callback.
+            </summary>
+        </member>
+        <member name="E:EasySlack.ISlackConnector.MessageReceived">
+            <summary>
+            Fired when a Slack message event is received.
+            </summary>
+        </member>
+        <member name="E:EasySlack.ISlackConnector.Connected">
+            <summary>
+            Fired when the connector establishes or re-establishes a Socket Mode connection.
+            </summary>
+        </member>
+        <member name="E:EasySlack.ISlackConnector.Disconnected">
+            <summary>
+            Fired when the connector loses its Socket Mode connection.
+            </summary>
+        </member>
+        <member name="E:EasySlack.ISlackConnector.ActionRequired">
+            <summary>
+            Fired when Slack reports a condition that likely requires user intervention.
+            </summary>
+        </member>
+        <member name="P:EasySlack.ISlackConnector.ConnectionState">
+            <summary>
+            Gets the current connection state.
+            </summary>
+        </member>
+        <member name="M:EasySlack.ISlackConnector.StartAsync(System.Threading.CancellationToken)">
+            <summary>
+            Starts the Socket Mode connection.
+            </summary>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when the initial connection is established.</returns>
+        </member>
+        <member name="M:EasySlack.ISlackConnector.StopAsync(System.Threading.CancellationToken)">
+            <summary>
+            Stops the Socket Mode connection.
+            </summary>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when the connector is stopped.</returns>
+        </member>
+        <member name="M:EasySlack.ISlackConnector.ValidateConnectionAsync(System.Threading.CancellationToken)">
+            <summary>
+            Validates the configured Slack bot token.
+            </summary>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The validation result.</returns>
+        </member>
+        <member name="M:EasySlack.ISlackConnector.SendMessageToUserAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Sends a message to a Slack user by opening or reusing a direct conversation.
+            </summary>
+            <param name="userId">The Slack user identifier.</param>
+            <param name="text">The message text.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The send result.</returns>
+        </member>
+        <member name="M:EasySlack.ISlackConnector.SendMessageToChannelAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Sends a message to a Slack channel or conversation.
+            </summary>
+            <param name="channelId">The Slack conversation identifier.</param>
+            <param name="text">The message text.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The send result.</returns>
+        </member>
+        <member name="M:EasySlack.ISlackConnector.GetChannelInfoAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Retrieves Slack conversation metadata.
+            </summary>
+            <param name="channelId">The Slack conversation identifier.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The conversation info result.</returns>
+        </member>
+        <member name="M:EasySlack.ISlackConnector.GetUserInfoAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Retrieves Slack user metadata.
+            </summary>
+            <param name="userId">The Slack user identifier.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The user info result.</returns>
+        </member>
+        <member name="T:EasySlack.SlackActionRequiredEventArgs">
+            <summary>
+            Provides details about a condition that may require operator attention.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackActionRequiredEventArgs.Code">
+            <summary>
+            Gets or sets the machine-friendly action code.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackActionRequiredEventArgs.Description">
+            <summary>
+            Gets or sets the human-readable description.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackActionRequiredEventArgs.RawPayload">
+            <summary>
+            Gets or sets the raw payload associated with the condition.
+            </summary>
+        </member>
+        <member name="T:EasySlack.SlackAuthMaterial">
+            <summary>
+            Stores the Slack tokens required by the connector.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackAuthMaterial.BotToken">
+            <summary>
+            Gets or sets the Slack bot token.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackAuthMaterial.AppToken">
+            <summary>
+            Gets or sets the Slack app token used for Socket Mode.
+            </summary>
+        </member>
+        <member name="M:EasySlack.SlackAuthMaterial.#ctor">
+            <summary>
+            Initializes a new instance of the <see cref="T:EasySlack.SlackAuthMaterial"/> class.
+            </summary>
+        </member>
+        <member name="M:EasySlack.SlackAuthMaterial.#ctor(System.String,System.String)">
+            <summary>
+            Initializes a new instance of the <see cref="T:EasySlack.SlackAuthMaterial"/> class.
+            </summary>
+            <param name="botToken">The Slack bot token.</param>
+            <param name="appToken">The Slack app token.</param>
+        </member>
+        <member name="T:EasySlack.SlackChannelInfoResult">
+            <summary>
+            Represents the result of a Slack conversation info request.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackChannelInfoResult.Ok">
+            <summary>
+            Gets or sets a value indicating whether the request succeeded.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackChannelInfoResult.Error">
+            <summary>
+            Gets or sets the Slack error code when available.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackChannelInfoResult.ChannelId">
+            <summary>
+            Gets or sets the conversation identifier.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackChannelInfoResult.Name">
+            <summary>
+            Gets or sets the conversation name.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackChannelInfoResult.IsChannel">
+            <summary>
+            Gets or sets a value indicating whether the conversation is a channel.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackChannelInfoResult.IsPrivate">
+            <summary>
+            Gets or sets a value indicating whether the conversation is private.
+            </summary>
+        </member>
+        <member name="T:EasySlack.SlackConnectedEventArgs">
+            <summary>
+            Provides connection established event data.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackConnectedEventArgs.IsReconnect">
+            <summary>
+            Gets or sets a value indicating whether the connection is a reconnection.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackConnectedEventArgs.SocketUri">
+            <summary>
+            Gets or sets the socket URI used for the connection.
+            </summary>
+        </member>
+        <member name="T:EasySlack.SlackConnectionState">
+            <summary>
+            Represents the connector connection state.
+            </summary>
+        </member>
+        <member name="F:EasySlack.SlackConnectionState.Disconnected">
+            <summary>
+            The connector is not connected.
+            </summary>
+        </member>
+        <member name="F:EasySlack.SlackConnectionState.Connecting">
+            <summary>
+            The connector is currently connecting.
+            </summary>
+        </member>
+        <member name="F:EasySlack.SlackConnectionState.Connected">
+            <summary>
+            The connector is connected.
+            </summary>
+        </member>
+        <member name="F:EasySlack.SlackConnectionState.Stopping">
+            <summary>
+            The connector is stopping.
+            </summary>
+        </member>
+        <member name="T:EasySlack.SlackConnector">
+            <summary>
+            Implements a native Slack connector using Slack Web API and Socket Mode.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackConnector.Logger">
+            <summary>
+            Gets or sets the diagnostic logger callback.
+            </summary>
+        </member>
+        <member name="E:EasySlack.SlackConnector.MessageReceived">
+            <summary>
+            Fired when a Slack message event is received.
+            </summary>
+        </member>
+        <member name="E:EasySlack.SlackConnector.Connected">
+            <summary>
+            Fired when the connector establishes or re-establishes a Socket Mode connection.
+            </summary>
+        </member>
+        <member name="E:EasySlack.SlackConnector.Disconnected">
+            <summary>
+            Fired when the connector loses its Socket Mode connection.
+            </summary>
+        </member>
+        <member name="E:EasySlack.SlackConnector.ActionRequired">
+            <summary>
+            Fired when Slack reports a condition that likely requires user intervention.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackConnector.ConnectionState">
+            <summary>
+            Gets the current connection state.
+            </summary>
+        </member>
+        <member name="M:EasySlack.SlackConnector.#ctor(EasySlack.SlackConnectorOptions)">
+            <summary>
+            Initializes a new instance of the <see cref="T:EasySlack.SlackConnector"/> class.
+            </summary>
+            <param name="options">The connector options.</param>
+        </member>
+        <member name="M:EasySlack.SlackConnector.#ctor(EasySlack.SlackConnectorOptions,System.Threading.CancellationTokenSource)">
+            <summary>
+            Initializes a new instance of the <see cref="T:EasySlack.SlackConnector"/> class.
+            </summary>
+            <param name="options">The connector options.</param>
+            <param name="cancellationTokenSource">The lifetime cancellation token source.</param>
+        </member>
+        <member name="M:EasySlack.SlackConnector.StartAsync(System.Threading.CancellationToken)">
+            <summary>
+            Starts the Socket Mode connection.
+            </summary>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when the initial connection is established.</returns>
+        </member>
+        <member name="M:EasySlack.SlackConnector.StopAsync(System.Threading.CancellationToken)">
+            <summary>
+            Stops the Socket Mode connection.
+            </summary>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when the connector is stopped.</returns>
+        </member>
+        <member name="M:EasySlack.SlackConnector.ValidateConnectionAsync(System.Threading.CancellationToken)">
+            <summary>
+            Validates the configured Slack bot token.
+            </summary>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The validation result.</returns>
+        </member>
+        <member name="M:EasySlack.SlackConnector.SendMessageToUserAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Sends a message to a Slack user by opening or reusing a direct conversation.
+            </summary>
+            <param name="userId">The Slack user identifier.</param>
+            <param name="text">The message text.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The send result.</returns>
+        </member>
+        <member name="M:EasySlack.SlackConnector.SendMessageToChannelAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Sends a message to a Slack channel or conversation.
+            </summary>
+            <param name="channelId">The Slack conversation identifier.</param>
+            <param name="text">The message text.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The send result.</returns>
+        </member>
+        <member name="M:EasySlack.SlackConnector.GetChannelInfoAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Retrieves Slack conversation metadata.
+            </summary>
+            <param name="channelId">The Slack conversation identifier.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The conversation info result.</returns>
+        </member>
+        <member name="M:EasySlack.SlackConnector.GetUserInfoAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Retrieves Slack user metadata.
+            </summary>
+            <param name="userId">The Slack user identifier.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>The user info result.</returns>
+        </member>
+        <member name="M:EasySlack.SlackConnector.Dispose">
+            <summary>
+            Releases connector resources.
+            </summary>
+        </member>
+        <member name="M:EasySlack.SlackConnector.DisposeAsync">
+            <summary>
+            Releases connector resources asynchronously.
+            </summary>
+            <returns>A task that completes when disposal is finished.</returns>
+        </member>
+        <member name="T:EasySlack.SlackConnectorOptions">
+            <summary>
+            Configures connector behavior.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackConnectorOptions.Auth">
+            <summary>
+            Gets or sets the Slack authentication material.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackConnectorOptions.AutoReconnect">
+            <summary>
+            Gets or sets a value indicating whether the connector should automatically reconnect.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackConnectorOptions.InitialReconnectDelayMs">
+            <summary>
+            Gets or sets the initial reconnect delay in milliseconds.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackConnectorOptions.MaxReconnectDelayMs">
+            <summary>
+            Gets or sets the maximum reconnect delay in milliseconds.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackConnectorOptions.ReceiveBufferSize">
+            <summary>
+            Gets or sets the receive buffer size in bytes.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackConnectorOptions.ApiBaseUrl">
+            <summary>
+            Gets or sets the Web API base URL.
+            </summary>
+        </member>
+        <member name="M:EasySlack.SlackConnectorOptions.#ctor">
+            <summary>
+            Initializes a new instance of the <see cref="T:EasySlack.SlackConnectorOptions"/> class.
+            </summary>
+        </member>
+        <member name="M:EasySlack.SlackConnectorOptions.#ctor(EasySlack.SlackAuthMaterial)">
+            <summary>
+            Initializes a new instance of the <see cref="T:EasySlack.SlackConnectorOptions"/> class.
+            </summary>
+            <param name="auth">The Slack authentication material.</param>
+        </member>
+        <member name="T:EasySlack.SlackDisconnectedEventArgs">
+            <summary>
+            Provides connection lost event data.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackDisconnectedEventArgs.Reason">
+            <summary>
+            Gets or sets the disconnect reason.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackDisconnectedEventArgs.WillReconnect">
+            <summary>
+            Gets or sets a value indicating whether the connector will attempt reconnection.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackDisconnectedEventArgs.Exception">
+            <summary>
+            Gets or sets the exception that caused the disconnect when applicable.
+            </summary>
+        </member>
+        <member name="T:EasySlack.SlackMessageReceivedEventArgs">
+            <summary>
+            Provides data for an inbound Slack message event.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackMessageReceivedEventArgs.ChannelId">
+            <summary>
+            Gets or sets the Slack conversation identifier.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackMessageReceivedEventArgs.UserId">
+            <summary>
+            Gets or sets the Slack user identifier.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackMessageReceivedEventArgs.Text">
+            <summary>
+            Gets or sets the message text.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackMessageReceivedEventArgs.Timestamp">
+            <summary>
+            Gets or sets the Slack message timestamp.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackMessageReceivedEventArgs.Subtype">
+            <summary>
+            Gets or sets the Slack event subtype.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackMessageReceivedEventArgs.RawPayload">
+            <summary>
+            Gets or sets the raw JSON payload.
+            </summary>
+        </member>
+        <member name="T:EasySlack.SlackSendMessageResult">
+            <summary>
+            Represents the result of posting a Slack message.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackSendMessageResult.Ok">
+            <summary>
+            Gets or sets a value indicating whether the send succeeded.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackSendMessageResult.Error">
+            <summary>
+            Gets or sets the Slack error code when available.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackSendMessageResult.ChannelId">
+            <summary>
+            Gets or sets the destination conversation identifier.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackSendMessageResult.Timestamp">
+            <summary>
+            Gets or sets the Slack timestamp for the created message.
+            </summary>
+        </member>
+        <member name="T:EasySlack.SlackUserInfoResult">
+            <summary>
+            Represents the result of a Slack user info request.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackUserInfoResult.Ok">
+            <summary>
+            Gets or sets a value indicating whether the request succeeded.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackUserInfoResult.Error">
+            <summary>
+            Gets or sets the Slack error code when available.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackUserInfoResult.UserId">
+            <summary>
+            Gets or sets the user identifier.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackUserInfoResult.UserName">
+            <summary>
+            Gets or sets the Slack username.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackUserInfoResult.RealName">
+            <summary>
+            Gets or sets the user real name.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackUserInfoResult.DisplayName">
+            <summary>
+            Gets or sets the user display name.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackUserInfoResult.IsBot">
+            <summary>
+            Gets or sets a value indicating whether the user is a bot.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackUserInfoResult.IsDeleted">
+            <summary>
+            Gets or sets a value indicating whether the user is deleted.
+            </summary>
+        </member>
+        <member name="T:EasySlack.SlackValidationResult">
+            <summary>
+            Represents the result of a Slack auth validation request.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackValidationResult.Ok">
+            <summary>
+            Gets or sets a value indicating whether validation succeeded.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackValidationResult.Error">
+            <summary>
+            Gets or sets the Slack error code when available.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackValidationResult.TeamId">
+            <summary>
+            Gets or sets the Slack team identifier.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackValidationResult.TeamName">
+            <summary>
+            Gets or sets the Slack team name.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackValidationResult.UserId">
+            <summary>
+            Gets or sets the authenticated user identifier.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackValidationResult.UserName">
+            <summary>
+            Gets or sets the authenticated user name.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackValidationResult.BotId">
+            <summary>
+            Gets or sets the authenticated bot identifier.
+            </summary>
+        </member>
+    </members>
+</doc>

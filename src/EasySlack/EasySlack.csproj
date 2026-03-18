@@ -1,0 +1,59 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <DocumentationFile>EasySlack.xml</DocumentationFile>
+    <RootNamespace>EasySlack</RootNamespace>
+    <ApplicationIcon>icon-grey.ico</ApplicationIcon>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>EasySlack is a native C# Slack connector built directly on Slack Web API and Socket Mode. It is intended to provide a stable application-facing interface without taking a dependency on a third-party Slack wrapper.</Title>
+    <Authors>jchristn</Authors>
+    <Description>EasySlack is a native C# Slack connector built directly on Slack Web API and Socket Mode. It is intended to provide a stable application-facing interface without taking a dependency on a third-party Slack wrapper.</Description>
+    <Copyright>(c)2026 Joel Christner</Copyright>
+    <PackageProjectUrl>https://github.com/jchristn/easyslack</PackageProjectUrl>
+    <PackageIcon>icon-grey.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/jchristn/easyslack</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>slack;api;messaging</PackageTags>
+    <PackageReleaseNotes>Initial release</PackageReleaseNotes>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <IncludeSymbols>True</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Test.Automated</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="icon-grey.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\assets\icon-grey.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\LICENSE.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="EasySlack.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

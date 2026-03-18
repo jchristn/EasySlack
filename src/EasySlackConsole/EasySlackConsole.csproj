@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\EasySlack\EasySlack.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Inputty" Version="1.0.13" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <DocumentationFile>EasySlackConsole.xml</DocumentationFile>
+  </PropertyGroup>
+
+</Project>

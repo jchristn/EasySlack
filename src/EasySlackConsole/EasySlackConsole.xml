@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>EasySlackConsole</name>
+    </assembly>
+    <members>
+        <member name="T:EasySlackConsole.Program">
+            <summary>
+            Provides an interactive console for manual EasySlack testing.
+            </summary>
+        </member>
+        <member name="M:EasySlackConsole.Program.Main(System.String[])">
+            <summary>
+            Runs the interactive console.
+            </summary>
+            <param name="args">Command-line arguments.</param>
+            <returns>Process exit code.</returns>
+        </member>
+    </members>
+</doc>
