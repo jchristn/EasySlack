@@ -2,7 +2,7 @@
 
 <img src="assets/icon-grey.png" width="128" height="128" alt="EasySlack icon" />
 
-EasySlack is a native C# Slack connector built directly on Slack Web API and Socket Mode. It avoids a dependency on a third-party Slack wrapper while providing a small, focused API for validation, sending messages, and receiving inbound Slack message events.
+EasySlack is a native C# Slack connector built directly on Slack Web API and Socket Mode. It avoids a dependency on a third-party Slack wrapper while providing a small, focused API for validation, sending messages, threaded replies, and receiving inbound Slack message events.
 
 ## Projects
 
@@ -15,10 +15,12 @@ EasySlack is a native C# Slack connector built directly on Slack Web API and Soc
 - Instantiate a connector from Slack auth material
 - Validate bot-token connectivity using `auth.test`
 - Send a message to a channel or conversation using `chat.postMessage`
+- Send a threaded reply to a channel or conversation using `thread_ts`
 - Send a message to a user by opening a direct conversation with `conversations.open`
 - Retrieve basic conversation metadata with `conversations.info`
 - Retrieve basic user metadata with `users.info`
 - Receive Socket Mode message events over WebSocket
+- Surface inbound `thread_ts` for threaded message handling
 - Fire async events for:
   - message received
   - connected
@@ -285,7 +287,7 @@ using SlackConnector connector = new SlackConnector(options, cancellationTokenSo
 
 ### Subscribe To A Channel
 
-The connector raises `MessageReceived` for inbound Slack message events delivered through Socket Mode. Filter to the channel you care about inside the handler.
+The connector raises `MessageReceived` for plain inbound Slack `message` events delivered through Socket Mode. Messages with a non-empty Slack `subtype` are skipped by default. Filter to the channel you care about inside the handler.
 
 ```csharp
 using EasySlack;
@@ -308,10 +310,14 @@ connector.MessageReceived += async (sender, eventArgs) =>
 {
     if (eventArgs.ChannelId == channelId)
     {
+        string conversationKey = eventArgs.ThreadTimestamp ?? eventArgs.Timestamp ?? string.Empty;
+
         Console.WriteLine("New message received.");
         Console.WriteLine("User: " + eventArgs.UserId);
         Console.WriteLine("Text: " + eventArgs.Text);
         Console.WriteLine("Timestamp: " + eventArgs.Timestamp);
+        Console.WriteLine("Thread Timestamp: " + (eventArgs.ThreadTimestamp ?? "(top-level message)"));
+        Console.WriteLine("Conversation Key: " + conversationKey);
     }
 
     await Task.CompletedTask.ConfigureAwait(false);
@@ -358,6 +364,43 @@ else
     Console.WriteLine("Slack rejected the message: " + result.Error);
 }
 ```
+
+### Send A Threaded Reply To A Conversation
+
+To reply in an existing Slack thread, pass the channel or conversation ID plus the thread root timestamp to `SendMessageToChannelAsync`. Leave `threadTimestamp` empty to keep the existing top-level post behavior.
+
+```csharp
+using EasySlack;
+using System;
+using System.Threading;
+
+SlackAuthMaterial auth = new SlackAuthMaterial(
+    "xoxb-your-bot-token",
+    "xapp-your-app-token");
+
+SlackConnectorOptions options = new SlackConnectorOptions(auth);
+
+using CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+using SlackConnector connector = new SlackConnector(options, cancellationTokenSource);
+
+connector.MessageReceived += async (sender, eventArgs) =>
+{
+    string replyThreadTimestamp = eventArgs.ThreadTimestamp ?? eventArgs.Timestamp ?? string.Empty;
+
+    if (eventArgs.ChannelId == "C0123456789" && !string.IsNullOrWhiteSpace(replyThreadTimestamp))
+    {
+        await connector
+            .SendMessageToChannelAsync(
+                eventArgs.ChannelId,
+                "Replying in the same thread.",
+                replyThreadTimestamp,
+                cancellationTokenSource.Token)
+            .ConfigureAwait(false);
+    }
+};
+```
+
+For top-level Slack messages, `ThreadTimestamp` is usually `null`. Use `eventArgs.ThreadTimestamp ?? eventArgs.Timestamp` when you want a stable conversation key that works for both root posts and replies.
 
 ## Build
 

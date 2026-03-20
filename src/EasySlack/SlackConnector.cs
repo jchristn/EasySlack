@@ -24,7 +24,8 @@ namespace EasySlack
         public Action<string>? Logger { get; set; }
 
         /// <summary>
-        /// Fired when a Slack message event is received.
+        /// Fired when a plain Slack message event is received.
+        /// Events with a non-empty subtype are skipped.
         /// </summary>
         public event AsyncEventHandler<SlackMessageReceivedEventArgs>? MessageReceived;
 
@@ -277,7 +278,7 @@ namespace EasySlack
         {
             string sanitizedUserId = RequireValue(userId, nameof(userId));
             string conversationId = await OpenDirectConversationAsync(sanitizedUserId, cancellationToken).ConfigureAwait(false);
-            return await SendMessageToChannelAsync(conversationId, text, cancellationToken).ConfigureAwait(false);
+            return await SendMessageToChannelAsync(conversationId, text, null, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -285,9 +286,10 @@ namespace EasySlack
         /// </summary>
         /// <param name="channelId">The Slack conversation identifier.</param>
         /// <param name="text">The message text.</param>
+        /// <param name="threadTimestamp">The Slack thread root timestamp to reply into, or <see langword="null"/> for a top-level message.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>The send result.</returns>
-        public async Task<SlackSendMessageResult> SendMessageToChannelAsync(string channelId, string text, CancellationToken cancellationToken = default)
+        public async Task<SlackSendMessageResult> SendMessageToChannelAsync(string channelId, string text, string? threadTimestamp = null, CancellationToken cancellationToken = default)
         {
             string sanitizedChannelId = RequireValue(channelId, nameof(channelId));
             string sanitizedText = RequireValue(text, nameof(text));
@@ -297,6 +299,11 @@ namespace EasySlack
                 { "channel", sanitizedChannelId },
                 { "text", sanitizedText }
             };
+
+            if (!string.IsNullOrWhiteSpace(threadTimestamp))
+            {
+                body["thread_ts"] = threadTimestamp.Trim();
+            }
 
             JsonDocument document = await SendApiRequestAsync(HttpMethod.Post, "chat.postMessage", _Options.Auth.BotToken, body, cancellationToken).ConfigureAwait(false);
             using (document)

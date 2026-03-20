@@ -83,6 +83,7 @@ namespace EasySlackConsole
             Console.WriteLine("  validate       Validate connectivity");
             Console.WriteLine("  user send      Send to a user");
             Console.WriteLine("  channel send   Send to a channel");
+            Console.WriteLine("                 Optionally send as a threaded reply by supplying thread_ts");
             Console.WriteLine("  channel sub    Subscribe to a channel in the background");
             Console.WriteLine("  channel unsub  Stop the active channel subscription");
             Console.WriteLine("  status         Show current subscription status");
@@ -168,6 +169,7 @@ namespace EasySlackConsole
         {
             string channelId = Inputty.GetString("Channel or conversation ID:", null, false);
             string text = Inputty.GetString("Message text:", null, false);
+            string threadTimestamp = Inputty.GetString("Thread root timestamp (optional):", string.Empty, true);
 
             using (CancellationTokenSource cancellationTokenSource = new CancellationTokenSource())
             {
@@ -175,12 +177,16 @@ namespace EasySlackConsole
                 {
                     try
                     {
-                        SlackSendMessageResult result = await connector.SendMessageToChannelAsync(channelId, text, cancellationTokenSource.Token).ConfigureAwait(false);
+                        SlackSendMessageResult result = await connector.SendMessageToChannelAsync(channelId, text, threadTimestamp, cancellationTokenSource.Token).ConfigureAwait(false);
                         if (result.Ok)
                         {
                             WriteSuccess("Message sent.");
                             Console.WriteLine("Channel: " + result.ChannelId);
                             Console.WriteLine("Timestamp: " + result.Timestamp);
+                            if (!string.IsNullOrWhiteSpace(threadTimestamp))
+                            {
+                                Console.WriteLine("Thread Root: " + threadTimestamp.Trim());
+                            }
                         }
                         else
                         {
@@ -381,6 +387,7 @@ namespace EasySlackConsole
             Console.WriteLine("Channel: " + eventArgs.ChannelId);
             Console.WriteLine("User: " + eventArgs.UserId);
             Console.WriteLine("Timestamp: " + eventArgs.Timestamp);
+            Console.WriteLine("Thread Timestamp: " + (eventArgs.ThreadTimestamp ?? "(top-level message)"));
             Console.WriteLine("Text: " + eventArgs.Text);
             Console.WriteLine();
         }

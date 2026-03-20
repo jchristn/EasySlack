@@ -23,9 +23,15 @@ namespace EasySlack
         public string? Text { get; set; }
 
         /// <summary>
-        /// Gets or sets the Slack message timestamp.
+        /// Gets or sets the Slack timestamp for the specific inbound message.
         /// </summary>
         public string? Timestamp { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Slack thread root timestamp when the message belongs to a thread.
+        /// This is usually <see langword="null"/> for top-level messages.
+        /// </summary>
+        public string? ThreadTimestamp { get; set; }
 
         /// <summary>
         /// Gets or sets the Slack event subtype.

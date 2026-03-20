@@ -15,7 +15,8 @@ namespace EasySlack
         Action<string>? Logger { get; set; }
 
         /// <summary>
-        /// Fired when a Slack message event is received.
+        /// Fired when a plain Slack message event is received.
+        /// Events with a non-empty subtype are skipped.
         /// </summary>
         event AsyncEventHandler<SlackMessageReceivedEventArgs>? MessageReceived;
 
@@ -74,9 +75,10 @@ namespace EasySlack
         /// </summary>
         /// <param name="channelId">The Slack conversation identifier.</param>
         /// <param name="text">The message text.</param>
+        /// <param name="threadTimestamp">The Slack thread root timestamp to reply into, or <see langword="null"/> for a top-level message.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>The send result.</returns>
-        Task<SlackSendMessageResult> SendMessageToChannelAsync(string channelId, string text, CancellationToken cancellationToken = default);
+        Task<SlackSendMessageResult> SendMessageToChannelAsync(string channelId, string text, string? threadTimestamp = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Retrieves Slack conversation metadata.

@@ -155,7 +155,8 @@
         </member>
         <member name="E:EasySlack.ISlackConnector.MessageReceived">
             <summary>
-            Fired when a Slack message event is received.
+            Fired when a plain Slack message event is received.
+            Events with a non-empty subtype are skipped.
             </summary>
         </member>
         <member name="E:EasySlack.ISlackConnector.Connected">
@@ -208,12 +209,13 @@
             <param name="cancellationToken">The cancellation token.</param>
             <returns>The send result.</returns>
         </member>
-        <member name="M:EasySlack.ISlackConnector.SendMessageToChannelAsync(System.String,System.String,System.Threading.CancellationToken)">
+        <member name="M:EasySlack.ISlackConnector.SendMessageToChannelAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
             <summary>
             Sends a message to a Slack channel or conversation.
             </summary>
             <param name="channelId">The Slack conversation identifier.</param>
             <param name="text">The message text.</param>
+            <param name="threadTimestamp">The Slack thread root timestamp to reply into, or <see langword="null"/> for a top-level message.</param>
             <param name="cancellationToken">The cancellation token.</param>
             <returns>The send result.</returns>
         </member>
@@ -367,7 +369,8 @@
         </member>
         <member name="E:EasySlack.SlackConnector.MessageReceived">
             <summary>
-            Fired when a Slack message event is received.
+            Fired when a plain Slack message event is received.
+            Events with a non-empty subtype are skipped.
             </summary>
         </member>
         <member name="E:EasySlack.SlackConnector.Connected">
@@ -433,12 +436,13 @@
             <param name="cancellationToken">The cancellation token.</param>
             <returns>The send result.</returns>
         </member>
-        <member name="M:EasySlack.SlackConnector.SendMessageToChannelAsync(System.String,System.String,System.Threading.CancellationToken)">
+        <member name="M:EasySlack.SlackConnector.SendMessageToChannelAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
             <summary>
             Sends a message to a Slack channel or conversation.
             </summary>
             <param name="channelId">The Slack conversation identifier.</param>
             <param name="text">The message text.</param>
+            <param name="threadTimestamp">The Slack thread root timestamp to reply into, or <see langword="null"/> for a top-level message.</param>
             <param name="cancellationToken">The cancellation token.</param>
             <returns>The send result.</returns>
         </member>
@@ -557,7 +561,13 @@
         </member>
         <member name="P:EasySlack.SlackMessageReceivedEventArgs.Timestamp">
             <summary>
-            Gets or sets the Slack message timestamp.
+            Gets or sets the Slack timestamp for the specific inbound message.
+            </summary>
+        </member>
+        <member name="P:EasySlack.SlackMessageReceivedEventArgs.ThreadTimestamp">
+            <summary>
+            Gets or sets the Slack thread root timestamp when the message belongs to a thread.
+            This is usually <see langword="null"/> for top-level messages.
             </summary>
         </member>
         <member name="P:EasySlack.SlackMessageReceivedEventArgs.Subtype">

@@ -92,6 +92,7 @@ namespace EasySlack.Internal
                     UserId = TryGetString(eventElement, "user"),
                     Text = TryGetString(eventElement, "text"),
                     Timestamp = TryGetString(eventElement, "ts"),
+                    ThreadTimestamp = TryGetString(eventElement, "thread_ts"),
                     Subtype = TryGetString(eventElement, "subtype"),
                     RawPayload = json
                 };

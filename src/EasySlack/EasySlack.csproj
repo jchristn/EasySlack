@@ -19,6 +19,7 @@
     <RepositoryUrl>https://github.com/jchristn/easyslack</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>slack;api;messaging</PackageTags>
+    <Version>1.0.1</Version>
     <PackageReleaseNotes>Initial release</PackageReleaseNotes>
     <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
     <IncludeSymbols>True</IncludeSymbols>

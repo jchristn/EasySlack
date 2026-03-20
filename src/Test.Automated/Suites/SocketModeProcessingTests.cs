@@ -33,12 +33,14 @@ namespace Test.Automated.Suites
         /// <returns>A task that completes when the tests finish.</returns>
         protected override async Task RunTestsAsync()
         {
-            await RunTest("Message Envelope Fires Message Event And Ack", TestMessageEnvelopeFiresMessageEventAndAckAsync).ConfigureAwait(false);
+            await RunTest("Top Level Message Leaves Thread Timestamp Empty And Acks", TestTopLevelMessageLeavesThreadTimestampEmptyAndAcksAsync).ConfigureAwait(false);
+            await RunTest("Threaded Message Populates Thread Timestamp And Acks", TestThreadedMessagePopulatesThreadTimestampAndAcksAsync).ConfigureAwait(false);
+            await RunTest("Subtype Message Is Acked But Not Dispatched", TestSubtypeMessageIsAckedButNotDispatchedAsync).ConfigureAwait(false);
             await RunTest("Unsupported Envelope Fires Action Required", TestUnsupportedEnvelopeFiresActionRequiredAsync).ConfigureAwait(false);
             await RunTest("Disconnect Envelope Fires Disconnected Event", TestDisconnectEnvelopeFiresDisconnectedEventAsync).ConfigureAwait(false);
         }
 
-        private async Task TestMessageEnvelopeFiresMessageEventAndAckAsync()
+        private async Task TestTopLevelMessageLeavesThreadTimestampEmptyAndAcksAsync()
         {
             FakeManagedWebSocket fakeSocket = new FakeManagedWebSocket();
             using (SlackConnector connector = CreateConnector(fakeSocket))
@@ -59,7 +61,58 @@ namespace Test.Automated.Suites
 
                 AssertEqual(1, events.Count, "message event count");
                 AssertEqual("hello", events[0].Text, "message text");
+                AssertEqual("123.456", events[0].Timestamp, "message timestamp");
+                AssertEqual(null, events[0].ThreadTimestamp, "thread timestamp");
                 Assert(fakeSocket.SentMessages[0].Contains("\"envelope_id\":\"abc\"", StringComparison.Ordinal), "ack payload");
+            }
+        }
+
+        private async Task TestThreadedMessagePopulatesThreadTimestampAndAcksAsync()
+        {
+            FakeManagedWebSocket fakeSocket = new FakeManagedWebSocket();
+            using (SlackConnector connector = CreateConnector(fakeSocket))
+            {
+                List<SlackMessageReceivedEventArgs> events = new List<SlackMessageReceivedEventArgs>();
+                connector.MessageReceived += async (sender, eventArgs) =>
+                {
+                    events.Add(eventArgs);
+                    await Task.CompletedTask.ConfigureAwait(false);
+                };
+
+                fakeSocket.EnqueueIncomingText("{\"envelope_id\":\"thread-1\",\"type\":\"events_api\",\"payload\":{\"event\":{\"type\":\"message\",\"channel\":\"C1\",\"user\":\"U1\",\"text\":\"reply\",\"ts\":\"456.789\",\"thread_ts\":\"123.456\"}}}");
+                fakeSocket.EnqueueIncomingText("{\"type\":\"hello\"}");
+
+                await connector.StartAsync().ConfigureAwait(false);
+                await Task.Delay(50).ConfigureAwait(false);
+                await connector.StopAsync().ConfigureAwait(false);
+
+                AssertEqual(1, events.Count, "message event count");
+                AssertEqual("123.456", events[0].ThreadTimestamp, "thread timestamp");
+                Assert(fakeSocket.SentMessages[0].Contains("\"envelope_id\":\"thread-1\"", StringComparison.Ordinal), "ack payload");
+            }
+        }
+
+        private async Task TestSubtypeMessageIsAckedButNotDispatchedAsync()
+        {
+            FakeManagedWebSocket fakeSocket = new FakeManagedWebSocket();
+            using (SlackConnector connector = CreateConnector(fakeSocket))
+            {
+                int eventCount = 0;
+                connector.MessageReceived += async (sender, eventArgs) =>
+                {
+                    eventCount++;
+                    await Task.CompletedTask.ConfigureAwait(false);
+                };
+
+                fakeSocket.EnqueueIncomingText("{\"envelope_id\":\"sub-1\",\"type\":\"events_api\",\"payload\":{\"event\":{\"type\":\"message\",\"channel\":\"C1\",\"user\":\"U1\",\"text\":\"ignored\",\"ts\":\"123.456\",\"subtype\":\"bot_message\"}}}");
+                fakeSocket.EnqueueIncomingText("{\"type\":\"hello\"}");
+
+                await connector.StartAsync().ConfigureAwait(false);
+                await Task.Delay(50).ConfigureAwait(false);
+                await connector.StopAsync().ConfigureAwait(false);
+
+                AssertEqual(0, eventCount, "subtype messages should not dispatch");
+                Assert(fakeSocket.SentMessages[0].Contains("\"envelope_id\":\"sub-1\"", StringComparison.Ordinal), "ack payload");
             }
         }
 

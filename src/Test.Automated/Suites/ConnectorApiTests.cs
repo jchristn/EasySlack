@@ -34,6 +34,9 @@ namespace Test.Automated.Suites
         {
             await RunTest("Validate Connection Parses Auth Test Response", TestValidateConnectionParsesAuthResponseAsync).ConfigureAwait(false);
             await RunTest("Send Message To User Opens Conversation Then Posts", TestSendMessageToUserUsesOpenConversationAsync).ConfigureAwait(false);
+            await RunTest("Send Message To Channel Omits Thread Timestamp When Empty", TestSendMessageToChannelOmitsThreadTimestampWhenEmptyAsync).ConfigureAwait(false);
+            await RunTest("Send Message To Channel Includes Thread Timestamp When Supplied", TestSendMessageToChannelIncludesThreadTimestampAsync).ConfigureAwait(false);
+            await RunTest("Send Message To User Does Not Include Thread Timestamp", TestSendMessageToUserDoesNotIncludeThreadTimestampAsync).ConfigureAwait(false);
             await RunTest("Get Channel Info Parses Conversation Payload", TestGetChannelInfoParsesPayloadAsync).ConfigureAwait(false);
         }
 
@@ -83,6 +86,68 @@ namespace Test.Automated.Suites
                 Assert(result.Ok, "message should send");
                 AssertEqual("D123", result.ChannelId, "conversation id");
                 AssertEqual("123.456", result.Timestamp, "timestamp");
+            }
+        }
+
+        private async Task TestSendMessageToChannelOmitsThreadTimestampWhenEmptyAsync()
+        {
+            StubHttpMessageHandler handler = new StubHttpMessageHandler();
+            handler.Enqueue(request =>
+            {
+                AssertEqual(HttpMethod.Post, request.Method, "chat.postMessage method");
+                string body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                Assert(body.Contains("\"channel\":\"C123\"", StringComparison.Ordinal), "channel payload");
+                Assert(body.Contains("\"text\":\"hello\"", StringComparison.Ordinal), "text payload");
+                Assert(!body.Contains("\"thread_ts\"", StringComparison.Ordinal), "thread_ts should be omitted");
+                return CreateJsonResponse("{\"ok\":true,\"channel\":\"C123\",\"ts\":\"123.456\"}");
+            });
+
+            using (SlackConnector connector = CreateConnector(handler))
+            {
+                SlackSendMessageResult result = await connector.SendMessageToChannelAsync("C123", "hello", "   ").ConfigureAwait(false);
+                Assert(result.Ok, "message should send");
+                AssertEqual("C123", result.ChannelId, "channel id");
+            }
+        }
+
+        private async Task TestSendMessageToChannelIncludesThreadTimestampAsync()
+        {
+            StubHttpMessageHandler handler = new StubHttpMessageHandler();
+            handler.Enqueue(request =>
+            {
+                AssertEqual(HttpMethod.Post, request.Method, "chat.postMessage method");
+                string body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                Assert(body.Contains("\"channel\":\"C123\"", StringComparison.Ordinal), "channel payload");
+                Assert(body.Contains("\"text\":\"hello\"", StringComparison.Ordinal), "text payload");
+                Assert(body.Contains("\"thread_ts\":\"123.456\"", StringComparison.Ordinal), "thread_ts payload");
+                return CreateJsonResponse("{\"ok\":true,\"channel\":\"C123\",\"ts\":\"789.012\"}");
+            });
+
+            using (SlackConnector connector = CreateConnector(handler))
+            {
+                SlackSendMessageResult result = await connector.SendMessageToChannelAsync("C123", "hello", "123.456").ConfigureAwait(false);
+                Assert(result.Ok, "message should send");
+                AssertEqual("789.012", result.Timestamp, "timestamp");
+            }
+        }
+
+        private async Task TestSendMessageToUserDoesNotIncludeThreadTimestampAsync()
+        {
+            StubHttpMessageHandler handler = new StubHttpMessageHandler();
+            handler.Enqueue(request => CreateJsonResponse("{\"ok\":true,\"channel\":{\"id\":\"D123\"}}"));
+            handler.Enqueue(request =>
+            {
+                string body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                Assert(body.Contains("\"channel\":\"D123\"", StringComparison.Ordinal), "channel payload");
+                Assert(body.Contains("\"text\":\"hello\"", StringComparison.Ordinal), "text payload");
+                Assert(!body.Contains("\"thread_ts\"", StringComparison.Ordinal), "thread_ts should not be included");
+                return CreateJsonResponse("{\"ok\":true,\"channel\":\"D123\",\"ts\":\"123.456\"}");
+            });
+
+            using (SlackConnector connector = CreateConnector(handler))
+            {
+                SlackSendMessageResult result = await connector.SendMessageToUserAsync("U123", "hello").ConfigureAwait(false);
+                Assert(result.Ok, "message should send");
             }
         }
 
