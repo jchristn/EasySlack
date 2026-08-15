@@ -1,4 +1,4 @@
-namespace Test.Automated.Support
+namespace Test.Shared.Support
 {
     using System;
     using EasySlack.Internal;

@@ -1,5 +1,8 @@
 <Solution>
   <Project Path="EasySlack/EasySlack.csproj" />
   <Project Path="EasySlackConsole/EasySlackConsole.csproj" />
+  <Project Path="Test.Shared/Test.Shared.csproj" />
   <Project Path="Test.Automated/Test.Automated.csproj" />
+  <Project Path="Test.Xunit/Test.Xunit.csproj" />
+  <Project Path="Test.Nunit/Test.Nunit.csproj" />
 </Solution>

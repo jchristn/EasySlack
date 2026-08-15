@@ -2,34 +2,52 @@ namespace Test.Automated
 {
     using System;
     using System.Threading.Tasks;
-    using Test.Automated.Suites;
+    using Test.Shared;
+    using Touchstone.Cli;
 
     /// <summary>
-    /// Entry point for the EasySlack automated test runner.
+    /// Touchstone console runner for the EasySlack test suites. Executes the shared descriptors
+    /// exposed by <see cref="EasySlackTestSuites.All"/> and returns a CI-friendly exit code.
     /// </summary>
-    public class Program
+    public static class Program
     {
         /// <summary>
-        /// Runs the automated test suites.
+        /// Runs the EasySlack Touchstone suites through the console runner.
         /// </summary>
-        /// <param name="args">Command-line arguments passed to the test runner.</param>
+        /// <param name="args">Command-line arguments. Supports <c>--help</c> and <c>--results &lt;path&gt;</c>.</param>
         /// <returns><c>0</c> when all tests pass; otherwise <c>1</c>.</returns>
         public static async Task<int> Main(string[] args)
         {
-            if (args.Length > 0 && (args[0] == "--help" || args[0] == "-h"))
+            string? resultsPath = null;
+
+            for (int i = 0; i < args.Length; i++)
             {
-                Console.WriteLine("Usage: Test.Automated [--help]");
-                Console.WriteLine();
-                Console.WriteLine("Runs the EasySlack automated test suite.");
-                return 0;
+                string arg = args[i];
+
+                if (arg == "--help" || arg == "-h")
+                {
+                    PrintUsage();
+                    return 0;
+                }
+
+                if (arg == "--results" && i + 1 < args.Length)
+                {
+                    resultsPath = args[++i];
+                }
             }
 
-            TestRunner runner = new TestRunner("EASYSLACK AUTOMATED TEST SUITE");
-            runner.AddSuite(new OptionValidationTests());
-            runner.AddSuite(new ConnectorApiTests());
-            runner.AddSuite(new SocketModeProcessingTests());
+            return await ConsoleRunner.RunAsync(EasySlackTestSuites.All, resultsPath: resultsPath).ConfigureAwait(false);
+        }
 
-            return await runner.RunAllAsync().ConfigureAwait(false);
+        private static void PrintUsage()
+        {
+            Console.WriteLine("Usage: Test.Automated [--results <path>] [--help]");
+            Console.WriteLine();
+            Console.WriteLine("Runs the EasySlack Touchstone test suites via the console runner.");
+            Console.WriteLine();
+            Console.WriteLine("Options:");
+            Console.WriteLine("  --results <path>   Write structured JSON results to the given file.");
+            Console.WriteLine("  --help, -h         Show this help text.");
         }
     }
 }

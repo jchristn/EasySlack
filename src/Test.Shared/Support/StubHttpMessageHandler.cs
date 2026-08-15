@@ -1,4 +1,4 @@
-namespace Test.Automated.Support
+namespace Test.Shared.Support
 {
     using System;
     using System.Collections.Generic;
@@ -10,7 +10,7 @@ namespace Test.Automated.Support
     /// <summary>
     /// Provides deterministic HTTP responses for connector tests.
     /// </summary>
-    internal class StubHttpMessageHandler : HttpMessageHandler
+    public class StubHttpMessageHandler : HttpMessageHandler
     {
         private readonly Queue<Func<HttpRequestMessage, HttpResponseMessage>> _Handlers = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>();
         private bool _Disposed = false;
@@ -30,6 +30,28 @@ namespace Test.Automated.Support
         }
 
         /// <summary>
+        /// Enqueues a JSON response with a 200 OK status.
+        /// </summary>
+        /// <param name="json">The JSON body to return.</param>
+        public void EnqueueJson(string json)
+        {
+            Enqueue(_ => CreateJsonResponse(json));
+        }
+
+        /// <summary>
+        /// Creates a JSON response message with the supplied status code.
+        /// </summary>
+        /// <param name="json">The JSON body.</param>
+        /// <param name="statusCode">The HTTP status code.</param>
+        /// <returns>The response message.</returns>
+        public static HttpResponseMessage CreateJsonResponse(string json, HttpStatusCode statusCode = HttpStatusCode.OK)
+        {
+            HttpResponseMessage response = new HttpResponseMessage(statusCode);
+            response.Content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            return response;
+        }
+
+        /// <summary>
         /// Handles a send request.
         /// </summary>
         /// <param name="request">The request.</param>
@@ -43,7 +65,7 @@ namespace Test.Automated.Support
             if (_Handlers.Count < 1)
             {
                 HttpResponseMessage defaultResponse = new HttpResponseMessage(HttpStatusCode.InternalServerError);
-                defaultResponse.Content = new StringContent("{\"ok\":false,\"error\":\"no_stub_response\"}");
+                defaultResponse.Content = new System.Net.Http.StringContent("{\"ok\":false,\"error\":\"no_stub_response\"}");
                 return Task.FromResult(defaultResponse);
             }
 

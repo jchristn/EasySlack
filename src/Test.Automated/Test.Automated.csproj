@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -6,10 +6,16 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Version>1.0.1</Version>
+    <RootNamespace>Test.Automated</RootNamespace>
+    <AssemblyName>Test.Automated</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EasySlack\EasySlack.csproj" />
+    <PackageReference Include="Touchstone.Cli" Version="0.1.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Test.Shared\Test.Shared.csproj" />
   </ItemGroup>
 
 </Project>

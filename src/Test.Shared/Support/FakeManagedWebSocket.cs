@@ -1,4 +1,4 @@
-namespace Test.Automated.Support
+namespace Test.Shared.Support
 {
     using EasySlack.Internal;
     using System;
@@ -20,6 +20,19 @@ namespace Test.Automated.Support
         /// Gets the sent text frames.
         /// </summary>
         public List<string> SentMessages { get; } = new List<string>();
+
+        /// <summary>
+        /// Gets a value indicating whether the socket was closed.
+        /// </summary>
+        public bool CloseCalled { get; private set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the socket should remain open when the receive
+        /// queue drains instead of reporting a close frame. When true, a drained receive blocks until
+        /// the cancellation token fires, keeping the connector in the connected state for deterministic
+        /// lifecycle assertions.
+        /// </summary>
+        public bool KeepOpenWhenDrained { get; set; }
 
         /// <summary>
         /// Gets the current state.
@@ -65,6 +78,13 @@ namespace Test.Automated.Support
 
             if (_ReceiveQueue.Count < 1)
             {
+                if (KeepOpenWhenDrained)
+                {
+                    TaskCompletionSource<WebSocketReceiveResult> pending = new TaskCompletionSource<WebSocketReceiveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    cancellationToken.Register(() => pending.TrySetException(new OperationCanceledException(cancellationToken)));
+                    return pending.Task;
+                }
+
                 _State = WebSocketState.CloseReceived;
                 WebSocketReceiveResult closeResult = new WebSocketReceiveResult(0, WebSocketMessageType.Close, true, WebSocketCloseStatus.NormalClosure, "closed");
                 return Task.FromResult(closeResult);
@@ -98,6 +118,7 @@ namespace Test.Automated.Support
         /// <returns>A completed task.</returns>
         public Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
         {
+            CloseCalled = true;
             _State = WebSocketState.Closed;
             return Task.CompletedTask;
         }
