@@ -191,6 +191,18 @@ namespace Test.Shared.Suites
                     await Check.ThrowsAsync<ArgumentNullException>(() => h.Connector.SendMessageToChannelAsync("C123", null!, null, ct), "null text").ConfigureAwait(false);
                 }),
 
+                Case("SendToChannelWhitespaceChannelThrows", "SendMessageToChannel rejects a whitespace channel id", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create();
+                    await Check.ThrowsAsync<ArgumentNullException>(() => h.Connector.SendMessageToChannelAsync("   ", "hello", null, ct), "whitespace channel").ConfigureAwait(false);
+                }),
+
+                Case("SendToChannelWhitespaceTextThrows", "SendMessageToChannel rejects a whitespace text", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create();
+                    await Check.ThrowsAsync<ArgumentNullException>(() => h.Connector.SendMessageToChannelAsync("C123", "   ", null, ct), "whitespace text").ConfigureAwait(false);
+                }),
+
                 Case("GetChannelInfoParses", "GetChannelInfo parses a conversation payload", async ct =>
                 {
                     using ConnectorHarness h = ConnectorHarness.Create();
@@ -227,6 +239,12 @@ namespace Test.Shared.Suites
                     await Check.ThrowsAsync<ArgumentNullException>(() => h.Connector.GetChannelInfoAsync(null!, ct), "null channel").ConfigureAwait(false);
                 }),
 
+                Case("GetChannelInfoWhitespaceThrows", "GetChannelInfo rejects a whitespace channel id", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create();
+                    await Check.ThrowsAsync<ArgumentNullException>(() => h.Connector.GetChannelInfoAsync("   ", ct), "whitespace channel").ConfigureAwait(false);
+                }),
+
                 Case("GetChannelInfoSurfacesError", "GetChannelInfo surfaces a Slack error", async ct =>
                 {
                     using ConnectorHarness h = ConnectorHarness.Create();
@@ -261,6 +279,12 @@ namespace Test.Shared.Suites
                 {
                     using ConnectorHarness h = ConnectorHarness.Create();
                     await Check.ThrowsAsync<ArgumentNullException>(() => h.Connector.GetUserInfoAsync(null!, ct), "null user").ConfigureAwait(false);
+                }),
+
+                Case("GetUserInfoWhitespaceThrows", "GetUserInfo rejects a whitespace user id", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create();
+                    await Check.ThrowsAsync<ArgumentNullException>(() => h.Connector.GetUserInfoAsync("   ", ct), "whitespace user").ConfigureAwait(false);
                 }),
 
                 Case("GetUserInfoSurfacesError", "GetUserInfo surfaces a Slack error", async ct =>

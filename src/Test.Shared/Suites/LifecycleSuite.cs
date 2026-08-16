@@ -75,6 +75,15 @@ namespace Test.Shared.Suites
                     Check.Equal(SlackConnectionState.Disconnected, h.Connector.ConnectionState, "state after failure");
                 }),
 
+                Case("StartSocketOpenMissingUrlThrows", "StartAsync throws when Slack accepts the socket open but returns no URL", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create();
+                    h.Http.EnqueueJson("{\"ok\":true}");
+
+                    await Check.ThrowsAsync<InvalidOperationException>(() => h.Connector.StartAsync(ct), "missing socket url").ConfigureAwait(false);
+                    Check.Equal(SlackConnectionState.Disconnected, h.Connector.ConnectionState, "state after missing url");
+                }),
+
                 Case("StopWhenDisconnectedIsNoOp", "StopAsync is a no-op when never started", async ct =>
                 {
                     using ConnectorHarness h = ConnectorHarness.Create();

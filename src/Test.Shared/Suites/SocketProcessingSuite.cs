@@ -148,6 +148,117 @@ namespace Test.Shared.Suites
                     Check.True(events.Count >= 1, "disconnect fired on socket close");
                     Check.False(events[0].WillReconnect, "will not reconnect");
                 }),
+
+                Case("SocketCloseReconnectsWhenAutoReconnectEnabled", "A dropped socket reconnects and fires Connected with IsReconnect when auto-reconnect is enabled", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create(autoReconnect: true);
+                    h.Options.InitialReconnectDelayMs = 250;
+                    h.Socket.CloseThenKeepOpen(1);
+
+                    // One socket open for the initial connect, one for the reconnect.
+                    h.Http.EnqueueJson(SocketOpenResponse);
+                    h.Http.EnqueueJson(SocketOpenResponse);
+
+                    List<SlackConnectedEventArgs> connected = new List<SlackConnectedEventArgs>();
+                    List<SlackDisconnectedEventArgs> disconnected = new List<SlackDisconnectedEventArgs>();
+                    h.Connector.Connected += (sender, args) =>
+                    {
+                        connected.Add(args);
+                        return Task.CompletedTask;
+                    };
+                    h.Connector.Disconnected += (sender, args) =>
+                    {
+                        disconnected.Add(args);
+                        return Task.CompletedTask;
+                    };
+
+                    await h.Connector.StartAsync(ct).ConfigureAwait(false);
+                    await WaitForAsync(() => connected.Count >= 2, ct).ConfigureAwait(false);
+                    Check.Equal(SlackConnectionState.Connected, h.Connector.ConnectionState, "connected after reconnect");
+                    await h.Connector.StopAsync(ct).ConfigureAwait(false);
+
+                    Check.Equal(2, connected.Count, "connect count (initial + reconnect)");
+                    Check.False(connected[0].IsReconnect, "first connect is not a reconnect");
+                    Check.True(connected[1].IsReconnect, "second connect is a reconnect");
+                    Check.True(disconnected.Count >= 1, "disconnect fired before reconnect");
+                    Check.True(disconnected[0].WillReconnect, "will reconnect true");
+                    Check.Equal(SlackConnectionState.Disconnected, h.Connector.ConnectionState, "disconnected after stop");
+                }),
+
+                Case("DisconnectEnvelopeReconnectsWhenAutoReconnectEnabled", "A disconnect envelope reconnects when auto-reconnect is enabled", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create(autoReconnect: true);
+                    h.Options.InitialReconnectDelayMs = 250;
+                    h.Socket.KeepOpenWhenDrained = true;
+
+                    h.Http.EnqueueJson(SocketOpenResponse);
+                    h.Http.EnqueueJson(SocketOpenResponse);
+
+                    List<SlackConnectedEventArgs> connected = new List<SlackConnectedEventArgs>();
+                    List<SlackDisconnectedEventArgs> disconnected = new List<SlackDisconnectedEventArgs>();
+                    h.Connector.Connected += (sender, args) =>
+                    {
+                        connected.Add(args);
+                        return Task.CompletedTask;
+                    };
+                    h.Connector.Disconnected += (sender, args) =>
+                    {
+                        disconnected.Add(args);
+                        return Task.CompletedTask;
+                    };
+
+                    h.Socket.EnqueueIncomingText("{\"type\":\"disconnect\",\"reason\":\"refresh_requested\"}");
+
+                    await h.Connector.StartAsync(ct).ConfigureAwait(false);
+                    await WaitForAsync(() => connected.Count >= 2, ct).ConfigureAwait(false);
+                    await h.Connector.StopAsync(ct).ConfigureAwait(false);
+
+                    Check.Equal(2, connected.Count, "connect count (initial + reconnect)");
+                    Check.True(connected[1].IsReconnect, "second connect is a reconnect");
+                    Check.True(disconnected.Count >= 1, "disconnect fired");
+                    Check.Equal("refresh_requested", disconnected[0].Reason, "disconnect reason preserved");
+                    Check.True(disconnected[0].WillReconnect, "will reconnect true");
+                }),
+
+                Case("AppRateLimitedFiresActionRequired", "An app_rate_limited event surfaces ActionRequired through the connector", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create();
+
+                    List<SlackActionRequiredEventArgs> events = new List<SlackActionRequiredEventArgs>();
+                    h.Connector.ActionRequired += (sender, args) =>
+                    {
+                        events.Add(args);
+                        return Task.CompletedTask;
+                    };
+
+                    await h.Connector.ProcessSocketMessageAsync("{\"envelope_id\":\"rl-1\",\"type\":\"events_api\",\"payload\":{\"event\":{\"type\":\"app_rate_limited\"}}}", ct).ConfigureAwait(false);
+
+                    Check.Equal(1, events.Count, "action required count");
+                    Check.Equal("app_rate_limited", events[0].Code, "action code");
+                }),
+
+                Case("MultipleMessageHandlersAllInvoked", "Every subscribed MessageReceived handler is invoked", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create();
+
+                    int first = 0;
+                    int second = 0;
+                    h.Connector.MessageReceived += (sender, args) =>
+                    {
+                        Interlocked.Increment(ref first);
+                        return Task.CompletedTask;
+                    };
+                    h.Connector.MessageReceived += (sender, args) =>
+                    {
+                        Interlocked.Increment(ref second);
+                        return Task.CompletedTask;
+                    };
+
+                    await h.Connector.ProcessSocketMessageAsync("{\"type\":\"events_api\",\"payload\":{\"event\":{\"type\":\"message\",\"channel\":\"C1\",\"user\":\"U1\",\"text\":\"hi\",\"ts\":\"1.1\"}}}", ct).ConfigureAwait(false);
+
+                    Check.Equal(1, first, "first handler invoked once");
+                    Check.Equal(1, second, "second handler invoked once");
+                }),
             };
 
             return new TestSuiteDescriptor(SuiteId, "Socket Mode Processing", cases);

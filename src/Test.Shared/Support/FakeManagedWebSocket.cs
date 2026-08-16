@@ -15,6 +15,7 @@ namespace Test.Shared.Support
     {
         private readonly Queue<string> _ReceiveQueue = new Queue<string>();
         private WebSocketState _State = WebSocketState.None;
+        private int _ForcedCloses = 0;
 
         /// <summary>
         /// Gets the sent text frames.
@@ -33,6 +34,19 @@ namespace Test.Shared.Support
         /// lifecycle assertions.
         /// </summary>
         public bool KeepOpenWhenDrained { get; set; }
+
+        /// <summary>
+        /// Simulates the socket dropping a fixed number of times before it settles into an open,
+        /// blocking state. Each forced close surfaces to the connector as a <see cref="WebSocketMessageType.Close"/>
+        /// frame, exercising the exception-driven reconnect path deterministically. After the forced
+        /// closes are exhausted, a drained receive honours <see cref="KeepOpenWhenDrained"/>.
+        /// </summary>
+        /// <param name="count">The number of close frames to emit on drain before keeping the socket open.</param>
+        public void CloseThenKeepOpen(int count)
+        {
+            _ForcedCloses = count;
+            KeepOpenWhenDrained = true;
+        }
 
         /// <summary>
         /// Gets the current state.
@@ -78,6 +92,14 @@ namespace Test.Shared.Support
 
             if (_ReceiveQueue.Count < 1)
             {
+                if (_ForcedCloses > 0)
+                {
+                    _ForcedCloses--;
+                    _State = WebSocketState.CloseReceived;
+                    WebSocketReceiveResult forcedClose = new WebSocketReceiveResult(0, WebSocketMessageType.Close, true, WebSocketCloseStatus.NormalClosure, "closed");
+                    return Task.FromResult(forcedClose);
+                }
+
                 if (KeepOpenWhenDrained)
                 {
                     TaskCompletionSource<WebSocketReceiveResult> pending = new TaskCompletionSource<WebSocketReceiveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
