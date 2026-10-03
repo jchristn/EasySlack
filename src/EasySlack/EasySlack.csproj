@@ -19,7 +19,7 @@
     <RepositoryUrl>https://github.com/jchristn/easyslack</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>slack;api;messaging;opentelemetry;telemetry</PackageTags>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
     <PackageReleaseNotes>Fixes automatic reconnect: one receive loop per run, failed reconnects are retried with backoff, and stop cancels a pending reconnect. Includes the built-in OpenTelemetry-compatible metrics and traces from 1.1.0 (see TELEMETRY.md).</PackageReleaseNotes>
     <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
     <IncludeSymbols>True</IncludeSymbols>

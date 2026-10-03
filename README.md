@@ -426,6 +426,8 @@ With the OpenTelemetry SDK, use `.AddMeter("EasySlack")` and `.AddSource("EasySl
 cd C:\Code\EasySlack\src
 dotnet build
 dotnet run --project .\Test.Automated\Test.Automated.csproj --framework net8.0
+dotnet test .\Test.Xunit\Test.Xunit.csproj
+dotnet test .\Test.Nunit\Test.Nunit.csproj
 dotnet run --project .\EasySlackConsole\EasySlackConsole.csproj --framework net8.0
 ```
 

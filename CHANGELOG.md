@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.2 - 2026-10-03
+
+- Updated test dependencies: `Touchstone.Core`, `Touchstone.Cli`, `Touchstone.XunitAdapter`, and `Touchstone.NunitAdapter` 0.1.12 -> 0.2.0, `Microsoft.NET.Test.Sdk` 18.9.0 -> 18.10.1, and `NUnit3TestAdapter` 6.2.0 -> 6.3.0.
+- Touchstone 0.2.0 now emits its own telemetry on a separate `Touchstone` meter and activity source. The EasySlack telemetry suite listens only to the `EasySlack` sources, so its assertions are unaffected.
+- No changes to the library's API, behavior, or runtime dependencies.
+
 ## 1.1.1 - 2026-10-03
 
 - Fixed automatic reconnect starting a second receive loop. Previously each reconnect started a new loop while the loop that detected the disconnect kept running, so two loops read the same WebSocket; with a real `ClientWebSocket` one of them failed with `InvalidOperationException`, and `StopAsync` could rethrow it. The receive loop now owns reconnection and keeps reading from the replacement socket.
