@@ -178,7 +178,7 @@ slack socket_mode.envelope             (consumer)
 Transport loss (new trace, linked to the connect span)
 easyslack disconnect
 ├── handler:Disconnected
-├── slack socket_mode.connect          (reconnect = true)
+├── slack socket_mode.connect          (reconnect = true; one span per attempt, failed attempts are Error)
 │   └── slack apps.connections.open
 └── handler:Connected
 ```
@@ -261,4 +261,4 @@ From any panel, jump to Tempo with `{ resource.service.name = "<your service>" &
 
 - Config gauges are not emitted. Connector options (reconnect delays, buffer size, auto-reconnect) are per instance, and a process can host several connectors with no bounded identity to label them by. The effective backoff is visible through `easyslack.socket.reconnect.delay`.
 - On `net8.0`, histogram bucket advice is unavailable; configure buckets in the host (see [Histogram buckets](#histogram-buckets)).
-- Pre-existing behavior, surfaced by this telemetry and not changed by it: after an automatic reconnect, the reconnect path starts a new receive loop while the loop that handled the disconnect keeps running. With a real `ClientWebSocket` the two loops race on `ReceiveAsync`, and one of them ends with `InvalidOperationException`. The connector keeps receiving on the surviving loop, but `easyslack.socket.receive_loop.exits{easyslack.loop.exit_reason="faulted"}` increments. Until that is fixed, correlate the `EasySlackReceiveLoopFaulted` alert with `easyslack_socket_connections_active`: a fault with an active connection right after a reconnect is this race, while a fault followed by zero active connections or a stale `easyslack_envelope_last_success_time_seconds` is a real outage.
+- Reconnect behavior (fixed in 1.1.1): the receive loop owns reconnection, so a connector never has more than one receive loop, and a failed reconnect attempt is retried with doubling backoff (capped at `MaxReconnectDelayMs`) instead of faulting the loop. Each attempt records one `easyslack.socket.reconnect.delay` sample and one `easyslack.socket.connects{easyslack.reconnect="True"}` outcome, and the connection state moves `connecting` to `disconnected` between failed attempts. A `faulted` receive loop exit therefore always means the connector stopped receiving (typically an exception thrown by your own event handler), and `EasySlackReceiveLoopFaulted` should be treated as an outage. Sustained `easyslack_socket_connects_total{easyslack_reconnect="True",easyslack_outcome="error"}` with zero active connections means Slack is unreachable or rejecting `apps.connections.open`.

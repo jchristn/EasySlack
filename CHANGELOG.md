@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.1 - 2026-10-03
+
+- Fixed automatic reconnect starting a second receive loop. Previously each reconnect started a new loop while the loop that detected the disconnect kept running, so two loops read the same WebSocket; with a real `ClientWebSocket` one of them failed with `InvalidOperationException`, and `StopAsync` could rethrow it. The receive loop now owns reconnection and keeps reading from the replacement socket.
+- Fixed a failed reconnect attempt ending the receive loop and leaving `ConnectionState` stuck at `Connecting`. Failed attempts are now retried with doubling backoff up to `MaxReconnectDelayMs`; the state reports `Disconnected` between attempts.
+- Fixed `StopAsync` during a reconnect backoff returning without canceling the pending reconnect, and `StartAsync` being accepted (starting a second run) during that window. Stop now cancels the backoff, and Start is rejected until the run has stopped.
+- Fixed a race where `StopAsync` could run between the socket opening and the receive loop starting, and a socket that finished opening after `StopAsync` could set the state back to `Connected`.
+- Stopping during a reconnect is now recorded as a `canceled` receive loop exit instead of `faulted`.
+- Added regression tests (the fake WebSocket now rejects concurrent receives, as `ClientWebSocket` does) for repeated reconnects, failed-reconnect retry, stop during backoff, and restart after a drop.
+
 ## 1.1.0 - 2026-10-02
 
 - Added built-in observability. EasySlack now emits metrics and traces on a `System.Diagnostics.Metrics.Meter` and `System.Diagnostics.ActivitySource`, both named `EasySlack`, with no new package dependencies.

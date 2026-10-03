@@ -380,6 +380,25 @@ namespace Test.Shared.Suites
                     Check.True(capture.SpansInTrace(disconnect.TraceId).Any(a => a.DisplayName == "slack socket_mode.connect" && a.ParentSpanId == disconnect.SpanId), "reconnect traced under disconnect span");
                 }),
 
+                Case("FailedReconnectRecorded", "A failed reconnect attempt records a reconnect error, backs off further, and then records the successful retry", async ct =>
+                {
+                    using TelemetryCapture capture = new TelemetryCapture();
+                    using ConnectorHarness h = ConnectorHarness.Create(autoReconnect: true);
+                    h.Options.InitialReconnectDelayMs = 250;
+                    h.Socket.CloseThenKeepOpen(1);
+                    h.Http.EnqueueJson(SocketOpenResponse);
+                    h.Http.EnqueueJson("{\"ok\":false,\"error\":\"internal_error\"}");
+                    h.Http.EnqueueJson(SocketOpenResponse);
+
+                    await h.Connector.StartAsync(ct).ConfigureAwait(false);
+                    await capture.WaitForAsync(() => capture.Find(EasySlackTelemetryNames.SocketConnects, T("easyslack.reconnect", "True", "easyslack.outcome", "success")).Any(), ct).ConfigureAwait(false);
+                    await h.Connector.StopAsync(ct).ConfigureAwait(false);
+
+                    capture.Require(EasySlackTelemetryNames.SocketConnects, T("easyslack.reconnect", "True", "easyslack.outcome", "error", "error.type", "System.InvalidOperationException"));
+                    Check.True(capture.Require(EasySlackTelemetryNames.SocketReconnectDelay).Any(m => Math.Abs(m.Value - 0.5) < 0.0001), "second attempt backed off to double the delay");
+                    Check.False(capture.Find(EasySlackTelemetryNames.ReceiveLoopExits, T("easyslack.loop.exit_reason", "faulted")).Any(), "receive loop never faulted");
+                }),
+
                 Case("ActionRequiredAndEventTypesRecorded", "Unsupported envelopes and app_rate_limited events record action codes and event types", async ct =>
                 {
                     using TelemetryCapture capture = new TelemetryCapture();

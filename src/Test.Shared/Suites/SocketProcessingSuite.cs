@@ -175,6 +175,8 @@ namespace Test.Shared.Suites
                     await h.Connector.StartAsync(ct).ConfigureAwait(false);
                     await WaitForAsync(() => connected.Count >= 2, ct).ConfigureAwait(false);
                     Check.Equal(SlackConnectionState.Connected, h.Connector.ConnectionState, "connected after reconnect");
+                    await Task.Delay(100, ct).ConfigureAwait(false);
+                    Check.False(h.Socket.ConcurrentReceiveDetected, "only one receive loop reads the socket after reconnect");
                     await h.Connector.StopAsync(ct).ConfigureAwait(false);
 
                     Check.Equal(2, connected.Count, "connect count (initial + reconnect)");
@@ -211,6 +213,8 @@ namespace Test.Shared.Suites
 
                     await h.Connector.StartAsync(ct).ConfigureAwait(false);
                     await WaitForAsync(() => connected.Count >= 2, ct).ConfigureAwait(false);
+                    await Task.Delay(100, ct).ConfigureAwait(false);
+                    Check.False(h.Socket.ConcurrentReceiveDetected, "only one receive loop reads the socket after reconnect");
                     await h.Connector.StopAsync(ct).ConfigureAwait(false);
 
                     Check.Equal(2, connected.Count, "connect count (initial + reconnect)");
@@ -218,6 +222,138 @@ namespace Test.Shared.Suites
                     Check.True(disconnected.Count >= 1, "disconnect fired");
                     Check.Equal("refresh_requested", disconnected[0].Reason, "disconnect reason preserved");
                     Check.True(disconnected[0].WillReconnect, "will reconnect true");
+                }),
+
+                Case("RepeatedReconnectsKeepSingleReader", "Several consecutive drops each reconnect without ever starting a second receive loop", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create(autoReconnect: true);
+                    h.Options.InitialReconnectDelayMs = 250;
+                    h.Options.MaxReconnectDelayMs = 1000;
+                    h.Socket.CloseThenKeepOpen(2);
+
+                    h.Http.EnqueueJson(SocketOpenResponse);
+                    h.Http.EnqueueJson(SocketOpenResponse);
+                    h.Http.EnqueueJson(SocketOpenResponse);
+
+                    List<SlackConnectedEventArgs> connected = new List<SlackConnectedEventArgs>();
+                    h.Connector.Connected += (sender, args) =>
+                    {
+                        connected.Add(args);
+                        return Task.CompletedTask;
+                    };
+
+                    await h.Connector.StartAsync(ct).ConfigureAwait(false);
+                    await WaitForAsync(() => connected.Count >= 3, ct).ConfigureAwait(false);
+                    await Task.Delay(100, ct).ConfigureAwait(false);
+
+                    Check.False(h.Socket.ConcurrentReceiveDetected, "only one receive loop reads the socket");
+                    Check.Equal(SlackConnectionState.Connected, h.Connector.ConnectionState, "connected after two reconnects");
+                    await h.Connector.StopAsync(ct).ConfigureAwait(false);
+
+                    Check.Equal(3, connected.Count, "connect count (initial + two reconnects)");
+                    Check.Equal(SlackConnectionState.Disconnected, h.Connector.ConnectionState, "disconnected after stop");
+                }),
+
+                Case("FailedReconnectIsRetried", "A failed reconnect attempt is retried instead of ending the run or leaving the state at Connecting", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create(autoReconnect: true);
+                    h.Options.InitialReconnectDelayMs = 250;
+                    h.Socket.CloseThenKeepOpen(1);
+
+                    h.Http.EnqueueJson(SocketOpenResponse);
+                    h.Http.EnqueueJson("{\"ok\":false,\"error\":\"internal_error\"}");
+                    h.Http.EnqueueJson(SocketOpenResponse);
+
+                    List<SlackConnectedEventArgs> connected = new List<SlackConnectedEventArgs>();
+                    List<SlackDisconnectedEventArgs> disconnected = new List<SlackDisconnectedEventArgs>();
+                    h.Connector.Connected += (sender, args) =>
+                    {
+                        connected.Add(args);
+                        return Task.CompletedTask;
+                    };
+                    h.Connector.Disconnected += (sender, args) =>
+                    {
+                        disconnected.Add(args);
+                        return Task.CompletedTask;
+                    };
+
+                    await h.Connector.StartAsync(ct).ConfigureAwait(false);
+                    await WaitForAsync(() => connected.Count >= 2, ct).ConfigureAwait(false);
+                    await Task.Delay(100, ct).ConfigureAwait(false);
+
+                    Check.Equal(SlackConnectionState.Connected, h.Connector.ConnectionState, "connected after the retried reconnect");
+                    Check.True(connected[1].IsReconnect, "second connect is a reconnect");
+                    Check.Equal(1, disconnected.Count, "a failed attempt does not raise another Disconnected");
+                    Check.Equal(3, h.Http.Requests.Count, "initial open, failed open, successful open");
+                    Check.False(h.Socket.ConcurrentReceiveDetected, "only one receive loop reads the socket");
+                    await h.Connector.StopAsync(ct).ConfigureAwait(false);
+
+                    Check.Equal(SlackConnectionState.Disconnected, h.Connector.ConnectionState, "disconnected after stop");
+                }),
+
+                Case("StopDuringReconnectBackoff", "Stopping while a reconnect is backing off cancels it and leaves the connector stopped", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create(autoReconnect: true);
+                    h.Options.InitialReconnectDelayMs = 60000;
+                    h.Socket.CloseThenKeepOpen(1);
+                    h.Http.EnqueueJson(SocketOpenResponse);
+
+                    List<SlackDisconnectedEventArgs> disconnected = new List<SlackDisconnectedEventArgs>();
+                    h.Connector.Disconnected += (sender, args) =>
+                    {
+                        disconnected.Add(args);
+                        return Task.CompletedTask;
+                    };
+
+                    await h.Connector.StartAsync(ct).ConfigureAwait(false);
+                    await WaitForAsync(() => disconnected.Count >= 1, ct).ConfigureAwait(false);
+                    Check.Equal(SlackConnectionState.Disconnected, h.Connector.ConnectionState, "disconnected while backing off");
+
+                    bool rejected = false;
+                    try
+                    {
+                        await h.Connector.StartAsync(ct).ConfigureAwait(false);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        rejected = true;
+                    }
+
+                    Check.True(rejected, "start is rejected while the run is still reconnecting");
+
+                    Task stop = h.Connector.StopAsync(ct);
+                    Task finished = await Task.WhenAny(stop, Task.Delay(5000, ct)).ConfigureAwait(false);
+                    Check.True(finished == stop, "stop completes without waiting out the backoff");
+                    await stop.ConfigureAwait(false);
+
+                    Check.Equal(SlackConnectionState.Disconnected, h.Connector.ConnectionState, "disconnected after stop");
+                    Check.Equal(1, h.Http.Requests.Count, "no reconnect attempted after stop");
+                }),
+
+                Case("RestartAfterDropWithoutReconnect", "After a drop with auto-reconnect disabled the connector can be started again", async ct =>
+                {
+                    using ConnectorHarness h = ConnectorHarness.Create();
+                    h.Http.EnqueueJson(SocketOpenResponse);
+                    h.Http.EnqueueJson(SocketOpenResponse);
+
+                    List<SlackDisconnectedEventArgs> disconnected = new List<SlackDisconnectedEventArgs>();
+                    h.Connector.Disconnected += (sender, args) =>
+                    {
+                        disconnected.Add(args);
+                        return Task.CompletedTask;
+                    };
+
+                    await h.Connector.StartAsync(ct).ConfigureAwait(false);
+                    await WaitForAsync(() => disconnected.Count >= 1, ct).ConfigureAwait(false);
+                    await Task.Delay(100, ct).ConfigureAwait(false);
+                    Check.Equal(SlackConnectionState.Disconnected, h.Connector.ConnectionState, "disconnected after drop");
+
+                    h.Socket.KeepOpenWhenDrained = true;
+                    await h.Connector.StartAsync(ct).ConfigureAwait(false);
+                    Check.Equal(SlackConnectionState.Connected, h.Connector.ConnectionState, "connected after restart");
+                    await h.Connector.StopAsync(ct).ConfigureAwait(false);
+
+                    Check.Equal(SlackConnectionState.Disconnected, h.Connector.ConnectionState, "disconnected after stop");
                 }),
 
                 Case("AppRateLimitedFiresActionRequired", "An app_rate_limited event surfaces ActionRequired through the connector", async ct =>

@@ -15,12 +15,26 @@ namespace Test.Shared.Support
     {
         private readonly Queue<string> _ReceiveQueue = new Queue<string>();
         private WebSocketState _State = WebSocketState.None;
+        private readonly object _ReceiveLock = new object();
         private int _ForcedCloses = 0;
+        private bool _ReceivePending = false;
 
         /// <summary>
         /// Gets the sent text frames.
         /// </summary>
         public List<string> SentMessages { get; } = new List<string>();
+
+        /// <summary>
+        /// Gets a value indicating whether a receive was started while another was still outstanding. A real
+        /// <see cref="System.Net.WebSockets.ClientWebSocket"/> rejects that with an <see cref="InvalidOperationException"/>,
+        /// which this fake mirrors.
+        /// </summary>
+        public bool ConcurrentReceiveDetected { get; private set; }
+
+        /// <summary>
+        /// Gets the number of times <see cref="ConnectAsync"/> was called.
+        /// </summary>
+        public int ConnectCount { get; private set; }
 
         /// <summary>
         /// Gets a value indicating whether the socket was closed.
@@ -76,6 +90,7 @@ namespace Test.Shared.Support
         /// <returns>A completed task.</returns>
         public Task ConnectAsync(Uri uri, CancellationToken cancellationToken)
         {
+            ConnectCount++;
             _State = WebSocketState.Open;
             return Task.CompletedTask;
         }
@@ -102,8 +117,27 @@ namespace Test.Shared.Support
 
                 if (KeepOpenWhenDrained)
                 {
+                    lock (_ReceiveLock)
+                    {
+                        if (_ReceivePending)
+                        {
+                            ConcurrentReceiveDetected = true;
+                            throw new InvalidOperationException("There is already one outstanding 'ReceiveAsync' call for this WebSocket instance.");
+                        }
+
+                        _ReceivePending = true;
+                    }
+
                     TaskCompletionSource<WebSocketReceiveResult> pending = new TaskCompletionSource<WebSocketReceiveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-                    cancellationToken.Register(() => pending.TrySetException(new OperationCanceledException(cancellationToken)));
+                    cancellationToken.Register(() =>
+                    {
+                        lock (_ReceiveLock)
+                        {
+                            _ReceivePending = false;
+                        }
+
+                        pending.TrySetException(new OperationCanceledException(cancellationToken));
+                    });
                     return pending.Task;
                 }
 

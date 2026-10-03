@@ -145,11 +145,14 @@ namespace EasySlack
             {
                 lock (_StateLock)
                 {
-                    if (_ConnectionState == SlackConnectionState.Connected || _ConnectionState == SlackConnectionState.Connecting)
+                    if (_ConnectionState != SlackConnectionState.Disconnected || IsReceiveLoopActiveLocked())
                     {
                         throw new InvalidOperationException("The Slack connector is already started.");
                     }
 
+                    // A previous run whose receive loop has already exited (for example, a drop with auto-reconnect disabled)
+                    // still holds its token source; release it before starting over.
+                    CleanupRunState();
                     SetStateLocked(SlackConnectionState.Connecting);
                     _RunCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_LifetimeCancellationTokenSource.Token);
                 }
@@ -160,7 +163,7 @@ namespace EasySlack
                 {
                     using (CancellationTokenSource linkedSource = CancellationTokenSource.CreateLinkedTokenSource(_RunCancellationTokenSource.Token, cancellationToken))
                     {
-                        await ConnectSocketAsync(false, linkedSource.Token).ConfigureAwait(false);
+                        await ConnectSocketAsync(linkedSource.Token).ConfigureAwait(false);
                     }
 
                     connected = true;
@@ -202,7 +205,9 @@ namespace EasySlack
 
             lock (_StateLock)
             {
-                if (_ConnectionState == SlackConnectionState.Disconnected)
+                // The state is also Disconnected while the receive loop waits out a reconnect backoff, so only treat the
+                // connector as stopped when no receive loop is running.
+                if (_ConnectionState == SlackConnectionState.Disconnected && !IsReceiveLoopActiveLocked())
                 {
                     CleanupRunState();
                     return;
@@ -573,40 +578,106 @@ namespace EasySlack
             }
         }
 
-        private async Task ConnectSocketAsync(bool isReconnect, CancellationToken cancellationToken)
+        private async Task ConnectSocketAsync(CancellationToken cancellationToken)
+        {
+            string socketUri = await OpenSocketAsync(false, cancellationToken).ConfigureAwait(false);
+            await RaiseConnectedAsync(false, socketUri).ConfigureAwait(false);
+        }
+
+        private async Task<string> OpenSocketAsync(bool isReconnect, CancellationToken cancellationToken)
         {
             Log("Opening Socket Mode connection.");
 
             long started = Stopwatch.GetTimestamp();
-            string socketUri;
 
             using (Activity? activity = EasySlackTelemetry.StartSocketConnect(isReconnect))
             {
                 try
                 {
-                    socketUri = await GetSocketModeUriAsync(cancellationToken).ConfigureAwait(false);
+                    string socketUri = await GetSocketModeUriAsync(cancellationToken).ConfigureAwait(false);
                     IManagedWebSocket socket = _WebSocketFactory.Create();
                     Uri uri = new Uri(socketUri, UriKind.Absolute);
 
-                    await socket.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
-                    Log("Connected WebSocket: " + socketUri);
-
-                    lock (_StateLock)
+                    try
                     {
-                        _WebSocket = socket;
-                        _ConnectionActivityContext = activity?.Context ?? default(ActivityContext);
-                        SetStateLocked(SlackConnectionState.Connected);
-                        _ReceiveTask = Task.Run(() => ReceiveLoopAsync(_RunCancellationTokenSource!.Token), _RunCancellationTokenSource!.Token);
+                        await socket.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
+                        Log("Connected WebSocket: " + socketUri);
+
+                        lock (_StateLock)
+                        {
+                            // StopAsync may have run while the socket was opening; do not resurrect a stopping connector.
+                            cancellationToken.ThrowIfCancellationRequested();
+                            _WebSocket = socket;
+                            _ConnectionActivityContext = activity?.Context ?? default(ActivityContext);
+                            SetStateLocked(SlackConnectionState.Connected);
+
+                            if (!isReconnect)
+                            {
+                                // The receive loop is started exactly once per run. Reconnects happen inside the loop,
+                                // which then reads from the replacement socket, so a socket never has two readers.
+                                CancellationToken runToken = _RunCancellationTokenSource!.Token;
+                                _ReceiveTask = Task.Run(() => ReceiveLoopAsync(runToken), runToken);
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        socket.Dispose();
+                        throw;
                     }
 
                     EasySlackTelemetry.CompleteSocketConnect(activity, isReconnect, started, EasySlackTelemetryNames.OutcomeSuccess, null);
+                    return socketUri;
                 }
                 catch (Exception exception) when (EasySlackTelemetry.FailSocketConnect(activity, isReconnect, started, exception))
                 {
                     throw;
                 }
             }
+        }
 
+        private async Task ReconnectAsync(Activity? disconnectActivity, int initialDelayMs, CancellationToken cancellationToken)
+        {
+            int delayMs = initialDelayMs;
+            string socketUri;
+
+            while (true)
+            {
+                EasySlackTelemetry.RecordReconnectDelay(disconnectActivity, delayMs);
+                await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+                DisposeSocket();
+
+                lock (_StateLock)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    SetStateLocked(SlackConnectionState.Connecting);
+                }
+
+                try
+                {
+                    socketUri = await OpenSocketAsync(true, cancellationToken).ConfigureAwait(false);
+                    break;
+                }
+                catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // A failed attempt (Slack unreachable, apps.connections.open error, handshake failure) must not end
+                    // the run or leave the state stuck at Connecting: report Disconnected and retry with backoff.
+                    Log("Reconnect attempt failed: " + exception.Message);
+
+                    lock (_StateLock)
+                    {
+                        if (_ConnectionState == SlackConnectionState.Connecting) SetStateLocked(SlackConnectionState.Disconnected);
+                    }
+
+                    delayMs = Math.Min(delayMs * 2, _Options.MaxReconnectDelayMs);
+                }
+            }
+
+            await RaiseConnectedAsync(true, socketUri).ConfigureAwait(false);
+        }
+
+        private async Task RaiseConnectedAsync(bool isReconnect, string socketUri)
+        {
             SlackConnectedEventArgs eventArgs = new SlackConnectedEventArgs
             {
                 IsReconnect = isReconnect,
@@ -640,6 +711,8 @@ namespace EasySlack
 
             while (!cancellationToken.IsCancellationRequested)
             {
+                Exception? dropped = null;
+
                 try
                 {
                     IManagedWebSocket? socket = _WebSocket;
@@ -659,16 +732,12 @@ namespace EasySlack
                 catch (WebSocketException exception)
                 {
                     Log("WebSocket exception: " + exception.Message);
-                    bool reconnected = await HandleDisconnectAndMaybeReconnectAsync(exception.Message, exception, reconnectDelayMs, cancellationToken).ConfigureAwait(false);
-                    if (!reconnected) return EasySlackTelemetryNames.LoopExitNoReconnect;
-                    reconnectDelayMs = Math.Min(reconnectDelayMs * 2, _Options.MaxReconnectDelayMs);
+                    dropped = exception;
                 }
                 catch (IOException exception)
                 {
                     Log("I/O exception in receive loop: " + exception.Message);
-                    bool reconnected = await HandleDisconnectAndMaybeReconnectAsync(exception.Message, exception, reconnectDelayMs, cancellationToken).ConfigureAwait(false);
-                    if (!reconnected) return EasySlackTelemetryNames.LoopExitNoReconnect;
-                    reconnectDelayMs = Math.Min(reconnectDelayMs * 2, _Options.MaxReconnectDelayMs);
+                    dropped = exception;
                 }
                 catch (JsonException exception)
                 {
@@ -682,6 +751,21 @@ namespace EasySlack
                     EasySlackTelemetry.RecordActionRequired(eventArgs.Code);
                     await InvokeEventHandlersAsync(ActionRequired, EasySlackTelemetryNames.EventActionRequired, eventArgs).ConfigureAwait(false);
                 }
+
+                if (dropped == null) continue;
+
+                try
+                {
+                    bool reconnected = await HandleDisconnectAndMaybeReconnectAsync(dropped.Message, dropped, reconnectDelayMs, cancellationToken).ConfigureAwait(false);
+                    if (!reconnected) return EasySlackTelemetryNames.LoopExitNoReconnect;
+                }
+                catch (OperationCanceledException)
+                {
+                    Log("Receive loop canceled during reconnect.");
+                    return EasySlackTelemetryNames.LoopExitCanceled;
+                }
+
+                reconnectDelayMs = Math.Min(reconnectDelayMs * 2, _Options.MaxReconnectDelayMs);
             }
 
             return EasySlackTelemetryNames.LoopExitCanceled;
@@ -705,23 +789,14 @@ namespace EasySlack
 
             lock (_StateLock)
             {
-                SetStateLocked(SlackConnectionState.Disconnected);
+                if (_ConnectionState != SlackConnectionState.Stopping) SetStateLocked(SlackConnectionState.Disconnected);
             }
 
             await InvokeEventHandlersAsync(Disconnected, EasySlackTelemetryNames.EventDisconnected, eventArgs).ConfigureAwait(false);
 
             if (!willReconnect) return false;
 
-            EasySlackTelemetry.RecordReconnectDelay(activity, reconnectDelayMs);
-            await Task.Delay(reconnectDelayMs, cancellationToken).ConfigureAwait(false);
-            DisposeSocket();
-
-            lock (_StateLock)
-            {
-                SetStateLocked(SlackConnectionState.Connecting);
-            }
-
-            await ConnectSocketAsync(true, cancellationToken).ConfigureAwait(false);
+            await ReconnectAsync(activity, reconnectDelayMs, cancellationToken).ConfigureAwait(false);
             return true;
         }
 
@@ -736,23 +811,14 @@ namespace EasySlack
 
             lock (_StateLock)
             {
-                SetStateLocked(SlackConnectionState.Disconnected);
+                if (_ConnectionState != SlackConnectionState.Stopping) SetStateLocked(SlackConnectionState.Disconnected);
             }
 
             await InvokeEventHandlersAsync(Disconnected, EasySlackTelemetryNames.EventDisconnected, eventArgs).ConfigureAwait(false);
 
             if (!willReconnect) return;
 
-            EasySlackTelemetry.RecordReconnectDelay(activity, _Options.InitialReconnectDelayMs);
-            await Task.Delay(_Options.InitialReconnectDelayMs, cancellationToken).ConfigureAwait(false);
-            DisposeSocket();
-
-            lock (_StateLock)
-            {
-                SetStateLocked(SlackConnectionState.Connecting);
-            }
-
-            await ConnectSocketAsync(true, cancellationToken).ConfigureAwait(false);
+            await ReconnectAsync(activity, _Options.InitialReconnectDelayMs, cancellationToken).ConfigureAwait(false);
         }
 
         private async Task HandleMessageReceivedAsync(SlackMessageReceivedEventArgs eventArgs, CancellationToken cancellationToken)
@@ -964,6 +1030,12 @@ namespace EasySlack
             SlackConnectionState previous = _ConnectionState;
             _ConnectionState = next;
             EasySlackTelemetry.RecordStateTransition(previous, next);
+        }
+
+        private bool IsReceiveLoopActiveLocked()
+        {
+            Task? receiveTask = _ReceiveTask;
+            return receiveTask != null && !receiveTask.IsCompleted;
         }
 
         private void DisposeSocket()
