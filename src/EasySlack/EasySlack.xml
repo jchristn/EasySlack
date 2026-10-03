@@ -13,6 +13,856 @@
             <param name="eventArgs">The event arguments.</param>
             <returns>A task representing the asynchronous handler invocation.</returns>
         </member>
+        <member name="T:EasySlack.EasySlackTelemetryNames">
+            <summary>
+            Stable public names for every telemetry point EasySlack emits: the meter and activity source names, every
+            metric instrument name, every span name, every attribute key, and the bounded attribute values used on metrics.
+            These names are a public contract consumed by dashboards and alerts. They do not change within a major version.
+            EasySlack emits through the base class library only (<see cref="T:System.Diagnostics.Metrics.Meter"/> and
+            <see cref="T:System.Diagnostics.ActivitySource"/>). A host collects them by subscribing to
+            <see cref="F:EasySlack.EasySlackTelemetryNames.MeterName"/> and <see cref="F:EasySlack.EasySlackTelemetryNames.ActivitySourceName"/>. Emission with no subscriber is effectively free.
+            This class is thread safe (constants only).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.MeterName">
+            <summary>
+            The name of the <see cref="T:System.Diagnostics.Metrics.Meter"/> EasySlack records metrics on.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.ActivitySourceName">
+            <summary>
+            The name of the <see cref="T:System.Diagnostics.ActivitySource"/> EasySlack opens spans on.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OperationDuration">
+            <summary>
+            Histogram (s). Duration of a public connector operation. Labels: operation, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.Operations">
+            <summary>
+            Counter ({operation}). Public connector operations by outcome. Labels: operation, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.ApiRequestDuration">
+            <summary>
+            Histogram (s). Duration of one Slack Web API call. Labels: slack.api.method, outcome, http.response.status_code, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.ApiRequests">
+            <summary>
+            Counter ({request}). Slack Web API calls by outcome. Labels: slack.api.method, outcome, http.response.status_code, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SocketConnectDuration">
+            <summary>
+            Histogram (s). Duration of establishing a Socket Mode connection (apps.connections.open plus the WebSocket handshake). Labels: reconnect, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SocketConnects">
+            <summary>
+            Counter ({attempt}). Socket Mode connection attempts by outcome. Labels: reconnect, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SocketConnectionsActive">
+            <summary>
+            UpDownCounter ({connection}). Socket Mode connections currently in the Connected state across all connectors in the process.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SocketDisconnects">
+            <summary>
+            Counter ({disconnect}). Socket Mode disconnects. Labels: disconnect.source, will_reconnect.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SocketReconnectDelay">
+            <summary>
+            Histogram (s). Backoff delay applied before a reconnect attempt. No labels.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.ReceiveLoopExits">
+            <summary>
+            Counter ({exit}). Receive loop terminations. Labels: loop.exit_reason, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SocketMessageSize">
+            <summary>
+            Histogram (By). Size of each inbound Socket Mode text message. No labels.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.Envelopes">
+            <summary>
+            Counter ({envelope}). Socket Mode envelopes processed (the pipeline job counter). Labels: envelope.type, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EnvelopeDuration">
+            <summary>
+            Histogram (s). End-to-end processing duration of one Socket Mode envelope. Labels: envelope.type, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EnvelopeStageDuration">
+            <summary>
+            Histogram (s). Duration of one envelope pipeline stage (parse, ack, dispatch). Labels: stage, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EnvelopeStageEvents">
+            <summary>
+            Counter ({event}). Envelope pipeline stage executions. Labels: stage, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EnvelopeLastSuccessTime">
+            <summary>
+            Observable gauge (s). Unix time of the most recent successfully processed envelope, across all connectors. Not reported until one succeeds.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EventsReceived">
+            <summary>
+            Counter ({event}). Events API events received inside events_api envelopes. Labels: slack.event.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.Messages">
+            <summary>
+            Counter ({message}). Inbound message events by disposition. Labels: message.disposition.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.HandlerDuration">
+            <summary>
+            Histogram (s). Time spent in application event handlers for one event raise. Labels: event, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.HandlerInvocations">
+            <summary>
+            Counter ({invocation}). Application event handler raises by outcome. Labels: event, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.ActionRequired">
+            <summary>
+            Counter ({event}). ActionRequired conditions raised. Labels: action.code.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.Errors">
+            <summary>
+            Counter ({error}). Failures by component and error type. Labels: component, error.type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.StateTransitions">
+            <summary>
+            Counter ({transition}). Connection state transitions. Labels: connection.state.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.BuildInfo">
+            <summary>
+            Observable gauge ({info}). Always 1, labeled with the EasySlack library version.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SpanOperationPrefix">
+            <summary>
+            Prefix of a public operation span name. The full name is "easyslack &lt;operation&gt;".
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SpanApiPrefix">
+            <summary>
+            Prefix of a Slack Web API client span name. The full name is "slack &lt;api method&gt;", for example "slack chat.postMessage".
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SpanSocketConnect">
+            <summary>
+            Client span covering apps.connections.open plus the WebSocket handshake.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SpanEnvelope">
+            <summary>
+            Consumer root span for one inbound Socket Mode envelope.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SpanStagePrefix">
+            <summary>
+            Prefix of an envelope pipeline stage span name. The full name is "stage:&lt;stage&gt;".
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SpanHandlerPrefix">
+            <summary>
+            Prefix of an application event handler span name. The full name is "handler:&lt;event&gt;".
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.SpanDisconnect">
+            <summary>
+            Root span covering a disconnect, the reconnect backoff, and the reconnect attempt.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeOperation">
+            <summary>
+            Attribute key: the public operation name.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeOutcome">
+            <summary>
+            Attribute key: the bounded outcome of an operation, call, stage, or handler.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeErrorType">
+            <summary>
+            Attribute key: the OpenTelemetry error type (exception type name or Slack error code).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeApiMethod">
+            <summary>
+            Attribute key: the Slack Web API method, for example "chat.postMessage".
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeHttpRequestMethod">
+            <summary>
+            Attribute key: the HTTP request method.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeHttpStatusCode">
+            <summary>
+            Attribute key: the HTTP response status code.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeServerAddress">
+            <summary>
+            Attribute key: the server host name (span only).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeRetryAfter">
+            <summary>
+            Attribute key: the Slack Retry-After value in seconds on a rate-limited response (span only).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeReconnect">
+            <summary>
+            Attribute key: whether a connection attempt is a reconnect.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeEnvelopeType">
+            <summary>
+            Attribute key: the normalized Socket Mode envelope type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeEnvelopeId">
+            <summary>
+            Attribute key: the Socket Mode envelope id (span only).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeStage">
+            <summary>
+            Attribute key: the envelope pipeline stage.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeEventType">
+            <summary>
+            Attribute key: the normalized Events API event type.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeChannelId">
+            <summary>
+            Attribute key: the Slack channel or conversation id (span only).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeThreaded">
+            <summary>
+            Attribute key: whether a message is a threaded message or reply (span only).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeMessageDisposition">
+            <summary>
+            Attribute key: the disposition of an inbound message event.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeEvent">
+            <summary>
+            Attribute key: the connector event being raised to application handlers.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeHandlerCount">
+            <summary>
+            Attribute key: the number of application handlers subscribed to an event (span only).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeActionCode">
+            <summary>
+            Attribute key: the ActionRequired code.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeDisconnectSource">
+            <summary>
+            Attribute key: the source of a disconnect.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeDisconnectReason">
+            <summary>
+            Attribute key: the free-form disconnect reason (span only).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeWillReconnect">
+            <summary>
+            Attribute key: whether the connector will reconnect after a disconnect.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeReconnectDelay">
+            <summary>
+            Attribute key: the reconnect backoff delay in seconds (span only).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeComponent">
+            <summary>
+            Attribute key: the component that failed.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeLoopExitReason">
+            <summary>
+            Attribute key: why the receive loop exited.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeConnectionState">
+            <summary>
+            Attribute key: the connection state entered.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeVersion">
+            <summary>
+            Attribute key: the EasySlack library version.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.AttributeMessageSize">
+            <summary>
+            Attribute key: the length of an inbound Socket Mode envelope payload in characters (span only).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OperationStart">
+            <summary>
+            Operation: <see cref="M:EasySlack.ISlackConnector.StartAsync(System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OperationStop">
+            <summary>
+            Operation: <see cref="M:EasySlack.ISlackConnector.StopAsync(System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OperationValidateConnection">
+            <summary>
+            Operation: <see cref="M:EasySlack.ISlackConnector.ValidateConnectionAsync(System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OperationSendMessageToUser">
+            <summary>
+            Operation: <see cref="M:EasySlack.ISlackConnector.SendMessageToUserAsync(System.String,System.String,System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OperationSendMessageToChannel">
+            <summary>
+            Operation: <see cref="M:EasySlack.ISlackConnector.SendMessageToChannelAsync(System.String,System.String,System.String,System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OperationGetChannelInfo">
+            <summary>
+            Operation: <see cref="M:EasySlack.ISlackConnector.GetChannelInfoAsync(System.String,System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OperationGetUserInfo">
+            <summary>
+            Operation: <see cref="M:EasySlack.ISlackConnector.GetUserInfoAsync(System.String,System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OutcomeSuccess">
+            <summary>
+            Outcome: completed successfully.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OutcomeSlackError">
+            <summary>
+            Outcome: Slack answered HTTP 2xx with "ok": false. error.type carries the Slack error code.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OutcomeHttpError">
+            <summary>
+            Outcome: Slack answered with a non-success HTTP status.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OutcomeError">
+            <summary>
+            Outcome: an exception was thrown.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OutcomeCanceled">
+            <summary>
+            Outcome: canceled through a cancellation token.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.OutcomeSkipped">
+            <summary>
+            Outcome: the stage had nothing to do (for example, no envelope id to acknowledge).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.StageParse">
+            <summary>
+            Envelope stage: JSON parse and classification.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.StageAck">
+            <summary>
+            Envelope stage: acknowledgement sent back to Slack over the socket.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.StageDispatch">
+            <summary>
+            Envelope stage: routing to the connector and raising application events.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EnvelopeTypeEventsApi">
+            <summary>
+            Envelope type: events_api.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EnvelopeTypeDisconnect">
+            <summary>
+            Envelope type: disconnect.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EnvelopeTypeHello">
+            <summary>
+            Envelope type: hello.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.TypeOther">
+            <summary>
+            Envelope or event type: any other value Slack sent.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EnvelopeTypeInvalid">
+            <summary>
+            Envelope type: the payload could not be parsed.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EventTypeMessage">
+            <summary>
+            Event type: message.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EventTypeAppRateLimited">
+            <summary>
+            Event type: app_rate_limited.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EventTypeMissing">
+            <summary>
+            Event type: the events_api envelope carried no event.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.DispositionDispatched">
+            <summary>
+            Message disposition: raised to MessageReceived handlers.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.DispositionSkippedSubtype">
+            <summary>
+            Message disposition: skipped because the message has a subtype.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.DisconnectSourceTransport">
+            <summary>
+            Disconnect source: the WebSocket closed or failed.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.DisconnectSourceServer">
+            <summary>
+            Disconnect source: Slack sent a disconnect envelope.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.LoopExitCanceled">
+            <summary>
+            Receive loop exit reason: canceled (stop or dispose).
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.LoopExitNoReconnect">
+            <summary>
+            Receive loop exit reason: disconnected with reconnect disabled.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.LoopExitFaulted">
+            <summary>
+            Receive loop exit reason: an unhandled exception (for example, a failed reconnect or a throwing handler) ended the loop.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.ComponentApi">
+            <summary>
+            Component: Slack Web API.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.ComponentSocket">
+            <summary>
+            Component: Socket Mode connection.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.ComponentEnvelope">
+            <summary>
+            Component: envelope pipeline.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.ComponentHandler">
+            <summary>
+            Component: application event handler.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.ComponentReceiveLoop">
+            <summary>
+            Component: receive loop.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EventMessageReceived">
+            <summary>
+            Handler event: MessageReceived.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EventConnected">
+            <summary>
+            Handler event: Connected.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EventDisconnected">
+            <summary>
+            Handler event: Disconnected.
+            </summary>
+        </member>
+        <member name="F:EasySlack.EasySlackTelemetryNames.EventActionRequired">
+            <summary>
+            Handler event: ActionRequired.
+            </summary>
+        </member>
+        <member name="T:EasySlack.Internal.EasySlackTelemetry">
+            <summary>
+            Owns the EasySlack <see cref="F:EasySlack.Internal.EasySlackTelemetry.Meter"/> and <see cref="T:System.Diagnostics.ActivitySource"/> and every instrument recorded on them.
+            Recording is best-effort: no method here throws, so instrumentation can never break the connector.
+            With no listener attached, spans are not created and instruments short-circuit, so the cost is negligible.
+            This class is thread safe.
+            </summary>
+        </member>
+        <member name="F:EasySlack.Internal.EasySlackTelemetry.Version">
+            <summary>
+            Gets the EasySlack library version reported on the meter, the activity source, and the build info gauge.
+            </summary>
+        </member>
+        <member name="F:EasySlack.Internal.EasySlackTelemetry.Source">
+            <summary>
+            Gets the activity source spans are opened on.
+            </summary>
+        </member>
+        <member name="F:EasySlack.Internal.EasySlackTelemetry.Meter">
+            <summary>
+            Gets the meter instruments are recorded on.
+            </summary>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.StartOperation(System.String)">
+            <summary>
+            Starts a span for a public connector operation.
+            </summary>
+            <param name="operation">The operation name.</param>
+            <returns>The span, or null when nobody is listening.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.CompleteOperation(System.Diagnostics.Activity,System.String,System.Int64,System.String,System.String)">
+            <summary>
+            Records a completed public connector operation.
+            </summary>
+            <param name="activity">The operation span.</param>
+            <param name="operation">The operation name.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="outcome">The outcome.</param>
+            <param name="errorType">The error type, or null on success.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.CompleteOperationResult(System.Diagnostics.Activity,System.String,System.Int64,System.Boolean,System.String)">
+            <summary>
+            Records a completed public connector operation from a Slack result's ok flag and error code.
+            </summary>
+            <param name="activity">The operation span.</param>
+            <param name="operation">The operation name.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="ok">The Slack ok flag.</param>
+            <param name="slackError">The Slack error code, if any.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.FailOperation(System.Diagnostics.Activity,System.String,System.Int64,System.Exception)">
+            <summary>
+            Records a failed public connector operation. Intended for use in an exception filter.
+            </summary>
+            <param name="activity">The operation span.</param>
+            <param name="operation">The operation name.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="exception">The exception.</param>
+            <returns>Always false, so the exception filter never catches.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.StartApi(System.String,System.String,System.Uri)">
+            <summary>
+            Starts a client span for one Slack Web API call.
+            </summary>
+            <param name="apiMethod">The Slack API method, for example chat.postMessage.</param>
+            <param name="httpMethod">The HTTP method.</param>
+            <param name="baseAddress">The API base address.</param>
+            <returns>The span, or null when nobody is listening.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.CompleteApi(System.Diagnostics.Activity,System.String,System.Int64,System.Int32,System.String,System.String)">
+            <summary>
+            Records a completed Slack Web API call.
+            </summary>
+            <param name="activity">The client span.</param>
+            <param name="apiMethod">The Slack API method.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="statusCode">The HTTP status code, or 0 when no response was received.</param>
+            <param name="outcome">The outcome.</param>
+            <param name="errorType">The error type, or null on success.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.FailApi(System.Diagnostics.Activity,System.String,System.Int64,System.Int32,System.Exception)">
+            <summary>
+            Records a Slack Web API call that threw. Intended for use in an exception filter.
+            </summary>
+            <param name="activity">The client span.</param>
+            <param name="apiMethod">The Slack API method.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="statusCode">The HTTP status code, or 0 when no response was received.</param>
+            <param name="exception">The exception.</param>
+            <returns>Always false, so the exception filter never catches.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.ApiMethodFromPath(System.String)">
+            <summary>
+            Returns the bounded Slack API method from a relative request path by removing any query string.
+            </summary>
+            <param name="relativePath">The relative request path.</param>
+            <returns>The API method.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.StartSocketConnect(System.Boolean)">
+            <summary>
+            Starts a client span for a Socket Mode connection attempt.
+            </summary>
+            <param name="isReconnect">Whether the attempt is a reconnect.</param>
+            <returns>The span, or null when nobody is listening.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.CompleteSocketConnect(System.Diagnostics.Activity,System.Boolean,System.Int64,System.String,System.String)">
+            <summary>
+            Records a completed Socket Mode connection attempt.
+            </summary>
+            <param name="activity">The connect span.</param>
+            <param name="isReconnect">Whether the attempt is a reconnect.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="outcome">The outcome.</param>
+            <param name="errorType">The error type, or null on success.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.FailSocketConnect(System.Diagnostics.Activity,System.Boolean,System.Int64,System.Exception)">
+            <summary>
+            Records a Socket Mode connection attempt that threw. Intended for use in an exception filter.
+            </summary>
+            <param name="activity">The connect span.</param>
+            <param name="isReconnect">Whether the attempt is a reconnect.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="exception">The exception.</param>
+            <returns>Always false, so the exception filter never catches.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.RecordStateTransition(EasySlack.SlackConnectionState,EasySlack.SlackConnectionState)">
+            <summary>
+            Records a connection state transition and keeps the active connection gauge balanced.
+            </summary>
+            <param name="previous">The previous state.</param>
+            <param name="next">The new state.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.StartDisconnect(System.String,System.String,System.Boolean,System.Diagnostics.ActivityContext)">
+            <summary>
+            Starts a span covering a disconnect and any reconnect that follows. It is a trace root for transport
+            disconnects (raised from the receive loop) and a child of the envelope span for Slack disconnect envelopes.
+            </summary>
+            <param name="source">The disconnect source.</param>
+            <param name="reason">The free-form reason (span only).</param>
+            <param name="willReconnect">Whether the connector will reconnect.</param>
+            <param name="connection">The context of the span that established the lost connection, linked for navigation.</param>
+            <returns>The span, or null when nobody is listening.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.RecordDisconnect(System.String,System.Boolean)">
+            <summary>
+            Records a disconnect.
+            </summary>
+            <param name="source">The disconnect source.</param>
+            <param name="willReconnect">Whether the connector will reconnect.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.RecordReconnectDelay(System.Diagnostics.Activity,System.Int32)">
+            <summary>
+            Records the backoff delay applied before a reconnect attempt.
+            </summary>
+            <param name="activity">The disconnect span.</param>
+            <param name="delayMs">The delay in milliseconds.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.RecordLoopExit(System.String,System.String)">
+            <summary>
+            Records a receive loop exit.
+            </summary>
+            <param name="reason">The exit reason.</param>
+            <param name="errorType">The error type when faulted, otherwise null.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.FailLoop(System.Exception)">
+            <summary>
+            Records a receive loop fault. Intended for use in an exception filter.
+            </summary>
+            <param name="exception">The exception.</param>
+            <returns>Always false, so the exception filter never catches.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.RecordMessageSize(System.Int64)">
+            <summary>
+            Records the size of one inbound Socket Mode message.
+            </summary>
+            <param name="bytes">The size in bytes.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.StartEnvelope(System.Int64,System.Diagnostics.ActivityContext)">
+            <summary>
+            Starts the consumer span for one inbound envelope. Inside the receive loop the span starts a new trace and
+            links to the span that established the connection, so a long-lived connection does not become one unbounded trace.
+            </summary>
+            <param name="sizeBytes">The approximate payload size.</param>
+            <param name="connection">The context of the connect span to link, or default.</param>
+            <returns>The span, or null when nobody is listening.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.CompleteEnvelope(System.Diagnostics.Activity,System.String,System.Int64,System.String,System.String)">
+            <summary>
+            Records a completed envelope (the pipeline job).
+            </summary>
+            <param name="activity">The envelope span.</param>
+            <param name="envelopeType">The normalized envelope type.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="outcome">The outcome.</param>
+            <param name="errorType">The error type, or null on success.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.FailEnvelope(System.Diagnostics.Activity,System.String,System.Int64,System.Exception)">
+            <summary>
+            Records an envelope that threw. Intended for use in an exception filter.
+            </summary>
+            <param name="activity">The envelope span.</param>
+            <param name="envelopeType">The normalized envelope type.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="exception">The exception.</param>
+            <returns>Always false, so the exception filter never catches.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.StartStage(System.String)">
+            <summary>
+            Starts a span for one envelope pipeline stage.
+            </summary>
+            <param name="stage">The stage name.</param>
+            <returns>The span, or null when nobody is listening.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.CompleteStage(System.Diagnostics.Activity,System.String,System.Int64,System.String,System.String)">
+            <summary>
+            Records a completed envelope pipeline stage.
+            </summary>
+            <param name="activity">The stage span.</param>
+            <param name="stage">The stage name.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="outcome">The outcome.</param>
+            <param name="errorType">The error type, or null on success.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.FailStage(System.Diagnostics.Activity,System.String,System.Int64,System.Exception)">
+            <summary>
+            Records an envelope pipeline stage that threw. Intended for use in an exception filter.
+            </summary>
+            <param name="activity">The stage span.</param>
+            <param name="stage">The stage name.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="exception">The exception.</param>
+            <returns>Always false, so the exception filter never catches.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.RecordEventReceived(System.String)">
+            <summary>
+            Records an Events API event received inside an events_api envelope.
+            </summary>
+            <param name="eventType">The normalized event type.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.RecordMessageDisposition(System.String)">
+            <summary>
+            Records the disposition of an inbound message event.
+            </summary>
+            <param name="disposition">The disposition.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.RecordActionRequired(System.String)">
+            <summary>
+            Records an ActionRequired condition.
+            </summary>
+            <param name="code">The library-defined action code.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.NormalizeEnvelopeType(System.String)">
+            <summary>
+            Normalizes a Socket Mode envelope type to a bounded value.
+            </summary>
+            <param name="type">The raw type.</param>
+            <returns>The bounded type.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.NormalizeEventType(System.String)">
+            <summary>
+            Normalizes an Events API event type to a bounded value.
+            </summary>
+            <param name="type">The raw type.</param>
+            <returns>The bounded type.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.StartHandler(System.String,System.Int32)">
+            <summary>
+            Starts a span for raising one connector event to application handlers.
+            </summary>
+            <param name="eventName">The connector event name.</param>
+            <param name="handlerCount">The number of subscribed handlers.</param>
+            <returns>The span, or null when nobody is listening.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.CompleteHandler(System.Diagnostics.Activity,System.String,System.Int64,System.String,System.String)">
+            <summary>
+            Records a completed handler raise.
+            </summary>
+            <param name="activity">The handler span.</param>
+            <param name="eventName">The connector event name.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="outcome">The outcome.</param>
+            <param name="errorType">The error type, or null on success.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.FailHandler(System.Diagnostics.Activity,System.String,System.Int64,System.Exception)">
+            <summary>
+            Records a handler raise that threw. Intended for use in an exception filter.
+            </summary>
+            <param name="activity">The handler span.</param>
+            <param name="eventName">The connector event name.</param>
+            <param name="started">The <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value at start.</param>
+            <param name="exception">The exception.</param>
+            <returns>Always false, so the exception filter never catches.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.SetTag(System.Diagnostics.Activity,System.String,System.Object)">
+            <summary>
+            Sets a tag on a span when the span exists and is recording.
+            </summary>
+            <param name="activity">The span.</param>
+            <param name="key">The attribute key.</param>
+            <param name="value">The attribute value.</param>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.OutcomeFor(System.Exception)">
+            <summary>
+            Returns the bounded outcome for an exception.
+            </summary>
+            <param name="exception">The exception.</param>
+            <returns>The outcome.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.ErrorTypeFor(System.Exception)">
+            <summary>
+            Returns the OpenTelemetry error type for an exception: its full type name.
+            </summary>
+            <param name="exception">The exception.</param>
+            <returns>The error type.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.NormalizeCode(System.String)">
+            <summary>
+            Normalizes a Slack error code or library code to a bounded, label-safe value. Slack error codes are a
+            documented finite set of lower-case snake_case identifiers. Anything else collapses to "other".
+            </summary>
+            <param name="code">The raw code.</param>
+            <returns>The bounded code.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.EasySlackTelemetry.StartLinkedActivity(System.String,System.Diagnostics.ActivityKind,System.Diagnostics.ActivityContext)">
+            <summary>
+            Starts a span linked to another span. The span is parented to <see cref="P:System.Diagnostics.Activity.Current"/> when one exists
+            and is a new trace root otherwise. The receive loop clears <see cref="P:System.Diagnostics.Activity.Current"/> when it starts, so
+            envelope and transport-disconnect spans begin their own traces instead of nesting under the connect span.
+            </summary>
+            <param name="name">The span name.</param>
+            <param name="kind">The span kind.</param>
+            <param name="link">The span context to link, or default for none.</param>
+            <returns>The span, or null when nobody is listening.</returns>
+        </member>
         <member name="T:EasySlack.Internal.IManagedWebSocket">
             <summary>
             Provides an abstraction over a client WebSocket for testability.
@@ -136,6 +986,19 @@
             Processes a raw Socket Mode payload.
             </summary>
             <param name="json">The raw JSON payload.</param>
+            <param name="acknowledgeAsync">Acknowledges the envelope when required.</param>
+            <param name="onMessageAsync">Invoked for recognized message events.</param>
+            <param name="onDisconnectedAsync">Invoked for disconnect envelopes.</param>
+            <param name="onActionRequiredAsync">Invoked for operator-attention events.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when processing finishes.</returns>
+        </member>
+        <member name="M:EasySlack.Internal.SocketModeEnvelopeProcessor.ProcessAsync(System.String,System.Diagnostics.ActivityContext,System.Func{System.String,System.Threading.CancellationToken,System.Threading.Tasks.Task},System.Func{EasySlack.SlackMessageReceivedEventArgs,System.Threading.CancellationToken,System.Threading.Tasks.Task},System.Func{EasySlack.SlackDisconnectedEventArgs,System.Threading.CancellationToken,System.Threading.Tasks.Task},System.Func{EasySlack.SlackActionRequiredEventArgs,System.Threading.CancellationToken,System.Threading.Tasks.Task},System.Threading.CancellationToken)">
+            <summary>
+            Processes a raw Socket Mode payload as one traced pipeline job with parse, ack, and dispatch stages.
+            </summary>
+            <param name="json">The raw JSON payload.</param>
+            <param name="connection">The context of the span that established the connection, linked from the envelope span, or default.</param>
             <param name="acknowledgeAsync">Acknowledges the envelope when required.</param>
             <param name="onMessageAsync">Invoked for recognized message events.</param>
             <param name="onDisconnectedAsync">Invoked for disconnect envelopes.</param>

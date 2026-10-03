@@ -18,9 +18,9 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/jchristn/easyslack</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>slack;api;messaging</PackageTags>
-    <Version>1.0.1</Version>
-    <PackageReleaseNotes>Initial release</PackageReleaseNotes>
+    <PackageTags>slack;api;messaging;opentelemetry;telemetry</PackageTags>
+    <Version>1.1.0</Version>
+    <PackageReleaseNotes>Adds built-in OpenTelemetry-compatible metrics and traces (Meter and ActivitySource named EasySlack). See TELEMETRY.md.</PackageReleaseNotes>
     <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
     <IncludeSymbols>True</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
@@ -46,6 +46,10 @@
       <PackagePath>\</PackagePath>
     </None>
     <None Include="..\..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\TELEMETRY.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>

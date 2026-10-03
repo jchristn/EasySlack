@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 - 2026-10-02
+
+- Added built-in observability. EasySlack now emits metrics and traces on a `System.Diagnostics.Metrics.Meter` and `System.Diagnostics.ActivitySource`, both named `EasySlack`, with no new package dependencies.
+- Metrics cover public operations, every Slack Web API call (by method, outcome, HTTP status, and Slack error code), Socket Mode connects, disconnects, reconnect backoff, and receive loop exits, the inbound envelope pipeline (per-stage parse, ack, and dispatch), application handler duration and failures, ActionRequired conditions, connection state, an active connection gauge, a last-processed-envelope timestamp, and build info.
+- Traces add an operation span per public call, a client span per Slack API call, a connect span, and one consumer trace per inbound envelope with a child span per stage and per handler raise, linked back to the connection.
+- Added `EasySlackTelemetryNames`, the public constants for every meter, instrument, span, and attribute name.
+- Added `TELEMETRY.md` with the full metrics and spans catalog, subscription examples (Radiant, OpenTelemetry SDK), recommended PromQL alerts, and a dashboard map.
+- Added a telemetry test suite (in-memory `MeterListener` and `ActivityListener`) covering every instrumented category, the failure paths, and the no-listener path.
+
 ## Testing infrastructure - 2026-08-15
 
 - Introduced Touchstone-based testing infrastructure with a single shared source of truth for test descriptors.

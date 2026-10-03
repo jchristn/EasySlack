@@ -1,6 +1,7 @@
 namespace EasySlack.Internal
 {
     using System;
+    using System.Diagnostics;
     using System.Text.Json;
     using System.Threading;
     using System.Threading.Tasks;
@@ -20,8 +21,31 @@ namespace EasySlack.Internal
         /// <param name="onActionRequiredAsync">Invoked for operator-attention events.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>A task that completes when processing finishes.</returns>
+        public Task ProcessAsync(
+            string json,
+            Func<string, CancellationToken, Task> acknowledgeAsync,
+            Func<SlackMessageReceivedEventArgs, CancellationToken, Task> onMessageAsync,
+            Func<SlackDisconnectedEventArgs, CancellationToken, Task> onDisconnectedAsync,
+            Func<SlackActionRequiredEventArgs, CancellationToken, Task> onActionRequiredAsync,
+            CancellationToken cancellationToken)
+        {
+            return ProcessAsync(json, default(ActivityContext), acknowledgeAsync, onMessageAsync, onDisconnectedAsync, onActionRequiredAsync, cancellationToken);
+        }
+
+        /// <summary>
+        /// Processes a raw Socket Mode payload as one traced pipeline job with parse, ack, and dispatch stages.
+        /// </summary>
+        /// <param name="json">The raw JSON payload.</param>
+        /// <param name="connection">The context of the span that established the connection, linked from the envelope span, or default.</param>
+        /// <param name="acknowledgeAsync">Acknowledges the envelope when required.</param>
+        /// <param name="onMessageAsync">Invoked for recognized message events.</param>
+        /// <param name="onDisconnectedAsync">Invoked for disconnect envelopes.</param>
+        /// <param name="onActionRequiredAsync">Invoked for operator-attention events.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task that completes when processing finishes.</returns>
         public async Task ProcessAsync(
             string json,
+            ActivityContext connection,
             Func<string, CancellationToken, Task> acknowledgeAsync,
             Func<SlackMessageReceivedEventArgs, CancellationToken, Task> onMessageAsync,
             Func<SlackDisconnectedEventArgs, CancellationToken, Task> onDisconnectedAsync,
@@ -30,46 +54,125 @@ namespace EasySlack.Internal
         {
             if (string.IsNullOrWhiteSpace(json)) return;
 
-            using (JsonDocument document = JsonDocument.Parse(json))
+            long started = Stopwatch.GetTimestamp();
+            string envelopeType = EasySlackTelemetryNames.EnvelopeTypeInvalid;
+            using Activity? activity = EasySlackTelemetry.StartEnvelope(json.Length, connection);
+
+            try
             {
-                JsonElement root = document.RootElement;
-                string? envelopeId = TryGetString(root, "envelope_id");
-                string? type = TryGetString(root, "type");
+                JsonDocument document = ParseStage(json);
 
-                if (!string.IsNullOrWhiteSpace(envelopeId))
+                using (document)
                 {
-                    await acknowledgeAsync(envelopeId, cancellationToken).ConfigureAwait(false);
-                }
+                    JsonElement root = document.RootElement;
+                    string? envelopeId = TryGetString(root, "envelope_id");
+                    string? type = TryGetString(root, "type");
+                    envelopeType = EasySlackTelemetry.NormalizeEnvelopeType(type);
+                    EasySlackTelemetry.SetTag(activity, EasySlackTelemetryNames.AttributeEnvelopeType, envelopeType);
+                    EasySlackTelemetry.SetTag(activity, EasySlackTelemetryNames.AttributeEnvelopeId, envelopeId);
 
-                if (string.Equals(type, "events_api", StringComparison.OrdinalIgnoreCase))
-                {
-                    await ProcessEventsApiEnvelopeAsync(root, json, onMessageAsync, onActionRequiredAsync, cancellationToken).ConfigureAwait(false);
-                    return;
-                }
+                    await AckStageAsync(envelopeId, acknowledgeAsync, cancellationToken).ConfigureAwait(false);
 
-                if (string.Equals(type, "disconnect", StringComparison.OrdinalIgnoreCase))
-                {
-                    SlackDisconnectedEventArgs disconnected = new SlackDisconnectedEventArgs
+                    long dispatchStarted = Stopwatch.GetTimestamp();
+                    using (Activity? dispatchActivity = EasySlackTelemetry.StartStage(EasySlackTelemetryNames.StageDispatch))
                     {
-                        Reason = ExtractDisconnectReason(root),
-                        WillReconnect = true
-                    };
-
-                    await onDisconnectedAsync(disconnected, cancellationToken).ConfigureAwait(false);
-                    return;
+                        try
+                        {
+                            await DispatchAsync(root, type, json, onMessageAsync, onDisconnectedAsync, onActionRequiredAsync, cancellationToken).ConfigureAwait(false);
+                            EasySlackTelemetry.CompleteStage(dispatchActivity, EasySlackTelemetryNames.StageDispatch, dispatchStarted, EasySlackTelemetryNames.OutcomeSuccess, null);
+                        }
+                        catch (Exception exception) when (EasySlackTelemetry.FailStage(dispatchActivity, EasySlackTelemetryNames.StageDispatch, dispatchStarted, exception))
+                        {
+                            throw;
+                        }
+                    }
                 }
 
-                if (!string.Equals(type, "hello", StringComparison.OrdinalIgnoreCase))
+                EasySlackTelemetry.CompleteEnvelope(activity, envelopeType, started, EasySlackTelemetryNames.OutcomeSuccess, null);
+            }
+            catch (Exception exception) when (EasySlackTelemetry.FailEnvelope(activity, envelopeType, started, exception))
+            {
+                throw;
+            }
+        }
+
+        private static JsonDocument ParseStage(string json)
+        {
+            long started = Stopwatch.GetTimestamp();
+            using Activity? activity = EasySlackTelemetry.StartStage(EasySlackTelemetryNames.StageParse);
+
+            try
+            {
+                JsonDocument document = JsonDocument.Parse(json);
+                EasySlackTelemetry.CompleteStage(activity, EasySlackTelemetryNames.StageParse, started, EasySlackTelemetryNames.OutcomeSuccess, null);
+                return document;
+            }
+            catch (Exception exception) when (EasySlackTelemetry.FailStage(activity, EasySlackTelemetryNames.StageParse, started, exception))
+            {
+                throw;
+            }
+        }
+
+        private static async Task AckStageAsync(string? envelopeId, Func<string, CancellationToken, Task> acknowledgeAsync, CancellationToken cancellationToken)
+        {
+            long started = Stopwatch.GetTimestamp();
+
+            if (string.IsNullOrWhiteSpace(envelopeId))
+            {
+                EasySlackTelemetry.CompleteStage(null, EasySlackTelemetryNames.StageAck, started, EasySlackTelemetryNames.OutcomeSkipped, null);
+                return;
+            }
+
+            using Activity? activity = EasySlackTelemetry.StartStage(EasySlackTelemetryNames.StageAck);
+
+            try
+            {
+                await acknowledgeAsync(envelopeId, cancellationToken).ConfigureAwait(false);
+                EasySlackTelemetry.CompleteStage(activity, EasySlackTelemetryNames.StageAck, started, EasySlackTelemetryNames.OutcomeSuccess, null);
+            }
+            catch (Exception exception) when (EasySlackTelemetry.FailStage(activity, EasySlackTelemetryNames.StageAck, started, exception))
+            {
+                throw;
+            }
+        }
+
+        private static async Task DispatchAsync(
+            JsonElement root,
+            string? type,
+            string json,
+            Func<SlackMessageReceivedEventArgs, CancellationToken, Task> onMessageAsync,
+            Func<SlackDisconnectedEventArgs, CancellationToken, Task> onDisconnectedAsync,
+            Func<SlackActionRequiredEventArgs, CancellationToken, Task> onActionRequiredAsync,
+            CancellationToken cancellationToken)
+        {
+            if (string.Equals(type, "events_api", StringComparison.OrdinalIgnoreCase))
+            {
+                await ProcessEventsApiEnvelopeAsync(root, json, onMessageAsync, onActionRequiredAsync, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (string.Equals(type, "disconnect", StringComparison.OrdinalIgnoreCase))
+            {
+                SlackDisconnectedEventArgs disconnected = new SlackDisconnectedEventArgs
                 {
-                    SlackActionRequiredEventArgs actionRequired = new SlackActionRequiredEventArgs
-                    {
-                        Code = "unsupported_socket_envelope",
-                        Description = "Received unsupported Socket Mode envelope type: " + type,
-                        RawPayload = json
-                    };
+                    Reason = ExtractDisconnectReason(root),
+                    WillReconnect = true
+                };
 
-                    await onActionRequiredAsync(actionRequired, cancellationToken).ConfigureAwait(false);
-                }
+                await onDisconnectedAsync(disconnected, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (!string.Equals(type, "hello", StringComparison.OrdinalIgnoreCase))
+            {
+                SlackActionRequiredEventArgs actionRequired = new SlackActionRequiredEventArgs
+                {
+                    Code = "unsupported_socket_envelope",
+                    Description = "Received unsupported Socket Mode envelope type: " + type,
+                    RawPayload = json
+                };
+
+                await onActionRequiredAsync(actionRequired, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -80,10 +183,14 @@ namespace EasySlack.Internal
             Func<SlackActionRequiredEventArgs, CancellationToken, Task> onActionRequiredAsync,
             CancellationToken cancellationToken)
         {
-            if (!root.TryGetProperty("payload", out JsonElement payload)) return;
-            if (!payload.TryGetProperty("event", out JsonElement eventElement)) return;
+            if (!root.TryGetProperty("payload", out JsonElement payload) || !payload.TryGetProperty("event", out JsonElement eventElement))
+            {
+                EasySlackTelemetry.RecordEventReceived(EasySlackTelemetryNames.EventTypeMissing);
+                return;
+            }
 
             string? eventType = TryGetString(eventElement, "type");
+            EasySlackTelemetry.RecordEventReceived(EasySlackTelemetry.NormalizeEventType(eventType));
             if (string.Equals(eventType, "message", StringComparison.OrdinalIgnoreCase))
             {
                 SlackMessageReceivedEventArgs message = new SlackMessageReceivedEventArgs

@@ -25,6 +25,7 @@ namespace Test.Shared
                     LifecycleSuite.Build(),
                     SocketProcessingSuite.Build(),
                     EnvelopeProcessorSuite.Build(),
+                    TelemetrySuite.Build(),
                 };
             }
         }

@@ -3,6 +3,7 @@ namespace EasySlack
     using EasySlack.Internal;
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.IO;
     using System.Net.Http;
     using System.Net.Http.Headers;
@@ -72,6 +73,7 @@ namespace EasySlack
         private Task? _ReceiveTask;
         private bool _Disposed = false;
         private SlackConnectionState _ConnectionState = SlackConnectionState.Disconnected;
+        private ActivityContext _ConnectionActivityContext = default(ActivityContext);
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SlackConnector"/> class.
@@ -136,39 +138,51 @@ namespace EasySlack
             ThrowIfDisposed();
             Log("Starting connector.");
 
-            lock (_StateLock)
-            {
-                if (_ConnectionState == SlackConnectionState.Connected || _ConnectionState == SlackConnectionState.Connecting)
-                {
-                    throw new InvalidOperationException("The Slack connector is already started.");
-                }
-
-                _ConnectionState = SlackConnectionState.Connecting;
-                _RunCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_LifetimeCancellationTokenSource.Token);
-            }
-
-            bool connected = false;
+            long started = Stopwatch.GetTimestamp();
+            using Activity? activity = EasySlackTelemetry.StartOperation(EasySlackTelemetryNames.OperationStart);
 
             try
             {
-                using (CancellationTokenSource linkedSource = CancellationTokenSource.CreateLinkedTokenSource(_RunCancellationTokenSource.Token, cancellationToken))
+                lock (_StateLock)
                 {
-                    await ConnectSocketAsync(false, linkedSource.Token).ConfigureAwait(false);
-                }
-
-                connected = true;
-            }
-            finally
-            {
-                if (!connected)
-                {
-                    lock (_StateLock)
+                    if (_ConnectionState == SlackConnectionState.Connected || _ConnectionState == SlackConnectionState.Connecting)
                     {
-                        _ConnectionState = SlackConnectionState.Disconnected;
+                        throw new InvalidOperationException("The Slack connector is already started.");
                     }
 
-                    CleanupRunState();
+                    SetStateLocked(SlackConnectionState.Connecting);
+                    _RunCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_LifetimeCancellationTokenSource.Token);
                 }
+
+                bool connected = false;
+
+                try
+                {
+                    using (CancellationTokenSource linkedSource = CancellationTokenSource.CreateLinkedTokenSource(_RunCancellationTokenSource.Token, cancellationToken))
+                    {
+                        await ConnectSocketAsync(false, linkedSource.Token).ConfigureAwait(false);
+                    }
+
+                    connected = true;
+                }
+                finally
+                {
+                    if (!connected)
+                    {
+                        lock (_StateLock)
+                        {
+                            SetStateLocked(SlackConnectionState.Disconnected);
+                        }
+
+                        CleanupRunState();
+                    }
+                }
+
+                EasySlackTelemetry.CompleteOperation(activity, EasySlackTelemetryNames.OperationStart, started, EasySlackTelemetryNames.OutcomeSuccess, null);
+            }
+            catch (Exception exception) when (EasySlackTelemetry.FailOperation(activity, EasySlackTelemetryNames.OperationStart, started, exception))
+            {
+                throw;
             }
         }
 
@@ -194,49 +208,23 @@ namespace EasySlack
                     return;
                 }
 
-                _ConnectionState = SlackConnectionState.Stopping;
+                SetStateLocked(SlackConnectionState.Stopping);
                 receiveTask = _ReceiveTask;
                 webSocket = _WebSocket;
                 runTokenSource = _RunCancellationTokenSource;
             }
 
-            if (runTokenSource != null) runTokenSource.Cancel();
+            long started = Stopwatch.GetTimestamp();
+            using Activity? activity = EasySlackTelemetry.StartOperation(EasySlackTelemetryNames.OperationStop);
 
-            if (webSocket != null)
+            try
             {
-                using (CancellationTokenSource linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
-                {
-                    linkedSource.CancelAfter(TimeSpan.FromSeconds(5));
-
-                    try
-                    {
-                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Stopping", linkedSource.Token).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                    }
-                    catch (WebSocketException)
-                    {
-                    }
-                }
+                await StopRunningAsync(receiveTask, webSocket, runTokenSource, cancellationToken).ConfigureAwait(false);
+                EasySlackTelemetry.CompleteOperation(activity, EasySlackTelemetryNames.OperationStop, started, EasySlackTelemetryNames.OutcomeSuccess, null);
             }
-
-            if (receiveTask != null)
+            catch (Exception exception) when (EasySlackTelemetry.FailOperation(activity, EasySlackTelemetryNames.OperationStop, started, exception))
             {
-                try
-                {
-                    await receiveTask.ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                }
-            }
-
-            CleanupRunState();
-
-            lock (_StateLock)
-            {
-                _ConnectionState = SlackConnectionState.Disconnected;
+                throw;
             }
         }
 
@@ -246,6 +234,23 @@ namespace EasySlack
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>The validation result.</returns>
         public async Task<SlackValidationResult> ValidateConnectionAsync(CancellationToken cancellationToken = default)
+        {
+            long started = Stopwatch.GetTimestamp();
+            using Activity? activity = EasySlackTelemetry.StartOperation(EasySlackTelemetryNames.OperationValidateConnection);
+
+            try
+            {
+                SlackValidationResult result = await ValidateConnectionCoreAsync(cancellationToken).ConfigureAwait(false);
+                EasySlackTelemetry.CompleteOperationResult(activity, EasySlackTelemetryNames.OperationValidateConnection, started, result.Ok, result.Error);
+                return result;
+            }
+            catch (Exception exception) when (EasySlackTelemetry.FailOperation(activity, EasySlackTelemetryNames.OperationValidateConnection, started, exception))
+            {
+                throw;
+            }
+        }
+
+        private async Task<SlackValidationResult> ValidateConnectionCoreAsync(CancellationToken cancellationToken)
         {
             Log("Validating bot token with auth.test.");
             JsonDocument document = await SendApiRequestAsync(HttpMethod.Get, "auth.test", _Options.Auth.BotToken, null, cancellationToken).ConfigureAwait(false);
@@ -276,9 +281,27 @@ namespace EasySlack
         /// <returns>The send result.</returns>
         public async Task<SlackSendMessageResult> SendMessageToUserAsync(string userId, string text, CancellationToken cancellationToken = default)
         {
+            long started = Stopwatch.GetTimestamp();
+            using Activity? activity = EasySlackTelemetry.StartOperation(EasySlackTelemetryNames.OperationSendMessageToUser);
+
+            try
+            {
+                SlackSendMessageResult result = await SendMessageToUserCoreAsync(userId, text, cancellationToken).ConfigureAwait(false);
+                EasySlackTelemetry.CompleteOperationResult(activity, EasySlackTelemetryNames.OperationSendMessageToUser, started, result.Ok, result.Error);
+                return result;
+            }
+            catch (Exception exception) when (EasySlackTelemetry.FailOperation(activity, EasySlackTelemetryNames.OperationSendMessageToUser, started, exception))
+            {
+                throw;
+            }
+        }
+
+        private async Task<SlackSendMessageResult> SendMessageToUserCoreAsync(string userId, string text, CancellationToken cancellationToken)
+        {
             string sanitizedUserId = RequireValue(userId, nameof(userId));
             string conversationId = await OpenDirectConversationAsync(sanitizedUserId, cancellationToken).ConfigureAwait(false);
-            return await SendMessageToChannelAsync(conversationId, text, null, cancellationToken).ConfigureAwait(false);
+            EasySlackTelemetry.SetTag(Activity.Current, EasySlackTelemetryNames.AttributeChannelId, conversationId);
+            return await SendMessageToChannelCoreAsync(conversationId, text, null, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -290,6 +313,25 @@ namespace EasySlack
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>The send result.</returns>
         public async Task<SlackSendMessageResult> SendMessageToChannelAsync(string channelId, string text, string? threadTimestamp = null, CancellationToken cancellationToken = default)
+        {
+            long started = Stopwatch.GetTimestamp();
+            using Activity? activity = EasySlackTelemetry.StartOperation(EasySlackTelemetryNames.OperationSendMessageToChannel);
+            EasySlackTelemetry.SetTag(activity, EasySlackTelemetryNames.AttributeChannelId, channelId);
+            EasySlackTelemetry.SetTag(activity, EasySlackTelemetryNames.AttributeThreaded, !string.IsNullOrWhiteSpace(threadTimestamp));
+
+            try
+            {
+                SlackSendMessageResult result = await SendMessageToChannelCoreAsync(channelId, text, threadTimestamp, cancellationToken).ConfigureAwait(false);
+                EasySlackTelemetry.CompleteOperationResult(activity, EasySlackTelemetryNames.OperationSendMessageToChannel, started, result.Ok, result.Error);
+                return result;
+            }
+            catch (Exception exception) when (EasySlackTelemetry.FailOperation(activity, EasySlackTelemetryNames.OperationSendMessageToChannel, started, exception))
+            {
+                throw;
+            }
+        }
+
+        private async Task<SlackSendMessageResult> SendMessageToChannelCoreAsync(string channelId, string text, string? threadTimestamp, CancellationToken cancellationToken)
         {
             string sanitizedChannelId = RequireValue(channelId, nameof(channelId));
             string sanitizedText = RequireValue(text, nameof(text));
@@ -329,6 +371,24 @@ namespace EasySlack
         /// <returns>The conversation info result.</returns>
         public async Task<SlackChannelInfoResult> GetChannelInfoAsync(string channelId, CancellationToken cancellationToken = default)
         {
+            long started = Stopwatch.GetTimestamp();
+            using Activity? activity = EasySlackTelemetry.StartOperation(EasySlackTelemetryNames.OperationGetChannelInfo);
+            EasySlackTelemetry.SetTag(activity, EasySlackTelemetryNames.AttributeChannelId, channelId);
+
+            try
+            {
+                SlackChannelInfoResult result = await GetChannelInfoCoreAsync(channelId, cancellationToken).ConfigureAwait(false);
+                EasySlackTelemetry.CompleteOperationResult(activity, EasySlackTelemetryNames.OperationGetChannelInfo, started, result.Ok, result.Error);
+                return result;
+            }
+            catch (Exception exception) when (EasySlackTelemetry.FailOperation(activity, EasySlackTelemetryNames.OperationGetChannelInfo, started, exception))
+            {
+                throw;
+            }
+        }
+
+        private async Task<SlackChannelInfoResult> GetChannelInfoCoreAsync(string channelId, CancellationToken cancellationToken)
+        {
             string sanitizedChannelId = RequireValue(channelId, nameof(channelId));
             string path = "conversations.info?channel=" + Uri.EscapeDataString(sanitizedChannelId);
 
@@ -361,6 +421,23 @@ namespace EasySlack
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>The user info result.</returns>
         public async Task<SlackUserInfoResult> GetUserInfoAsync(string userId, CancellationToken cancellationToken = default)
+        {
+            long started = Stopwatch.GetTimestamp();
+            using Activity? activity = EasySlackTelemetry.StartOperation(EasySlackTelemetryNames.OperationGetUserInfo);
+
+            try
+            {
+                SlackUserInfoResult result = await GetUserInfoCoreAsync(userId, cancellationToken).ConfigureAwait(false);
+                EasySlackTelemetry.CompleteOperationResult(activity, EasySlackTelemetryNames.OperationGetUserInfo, started, result.Ok, result.Error);
+                return result;
+            }
+            catch (Exception exception) when (EasySlackTelemetry.FailOperation(activity, EasySlackTelemetryNames.OperationGetUserInfo, started, exception))
+            {
+                throw;
+            }
+        }
+
+        private async Task<SlackUserInfoResult> GetUserInfoCoreAsync(string userId, CancellationToken cancellationToken)
         {
             string sanitizedUserId = RequireValue(userId, nameof(userId));
             string path = "users.info?user=" + Uri.EscapeDataString(sanitizedUserId);
@@ -445,6 +522,7 @@ namespace EasySlack
             Log("Received Socket Mode payload: " + json);
             await _EnvelopeProcessor.ProcessAsync(
                 json,
+                _ConnectionActivityContext,
                 AcknowledgeEnvelopeAsync,
                 HandleMessageReceivedAsync,
                 HandleDisconnectedEnvelopeAsync,
@@ -452,21 +530,81 @@ namespace EasySlack
                 cancellationToken).ConfigureAwait(false);
         }
 
-        private async Task ConnectSocketAsync(bool isReconnect, CancellationToken cancellationToken)
+        private async Task StopRunningAsync(Task? receiveTask, IManagedWebSocket? webSocket, CancellationTokenSource? runTokenSource, CancellationToken cancellationToken)
         {
-            Log("Opening Socket Mode connection.");
-            string socketUri = await GetSocketModeUriAsync(cancellationToken).ConfigureAwait(false);
-            IManagedWebSocket socket = _WebSocketFactory.Create();
-            Uri uri = new Uri(socketUri, UriKind.Absolute);
 
-            await socket.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
-            Log("Connected WebSocket: " + socketUri);
+            if (runTokenSource != null) runTokenSource.Cancel();
+
+            if (webSocket != null)
+            {
+                using (CancellationTokenSource linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    linkedSource.CancelAfter(TimeSpan.FromSeconds(5));
+
+                    try
+                    {
+                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Stopping", linkedSource.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    catch (WebSocketException)
+                    {
+                    }
+                }
+            }
+
+            if (receiveTask != null)
+            {
+                try
+                {
+                    await receiveTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            }
+
+            CleanupRunState();
 
             lock (_StateLock)
             {
-                _WebSocket = socket;
-                _ConnectionState = SlackConnectionState.Connected;
-                _ReceiveTask = Task.Run(() => ReceiveLoopAsync(_RunCancellationTokenSource!.Token), _RunCancellationTokenSource!.Token);
+                SetStateLocked(SlackConnectionState.Disconnected);
+            }
+        }
+
+        private async Task ConnectSocketAsync(bool isReconnect, CancellationToken cancellationToken)
+        {
+            Log("Opening Socket Mode connection.");
+
+            long started = Stopwatch.GetTimestamp();
+            string socketUri;
+
+            using (Activity? activity = EasySlackTelemetry.StartSocketConnect(isReconnect))
+            {
+                try
+                {
+                    socketUri = await GetSocketModeUriAsync(cancellationToken).ConfigureAwait(false);
+                    IManagedWebSocket socket = _WebSocketFactory.Create();
+                    Uri uri = new Uri(socketUri, UriKind.Absolute);
+
+                    await socket.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
+                    Log("Connected WebSocket: " + socketUri);
+
+                    lock (_StateLock)
+                    {
+                        _WebSocket = socket;
+                        _ConnectionActivityContext = activity?.Context ?? default(ActivityContext);
+                        SetStateLocked(SlackConnectionState.Connected);
+                        _ReceiveTask = Task.Run(() => ReceiveLoopAsync(_RunCancellationTokenSource!.Token), _RunCancellationTokenSource!.Token);
+                    }
+
+                    EasySlackTelemetry.CompleteSocketConnect(activity, isReconnect, started, EasySlackTelemetryNames.OutcomeSuccess, null);
+                }
+                catch (Exception exception) when (EasySlackTelemetry.FailSocketConnect(activity, isReconnect, started, exception))
+                {
+                    throw;
+                }
             }
 
             SlackConnectedEventArgs eventArgs = new SlackConnectedEventArgs
@@ -475,10 +613,27 @@ namespace EasySlack
                 SocketUri = socketUri
             };
 
-            await InvokeEventHandlersAsync(Connected, eventArgs).ConfigureAwait(false);
+            await InvokeEventHandlersAsync(Connected, EasySlackTelemetryNames.EventConnected, eventArgs).ConfigureAwait(false);
         }
 
         private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
+        {
+            // The loop is a background unit of work: detach it from the span that started it so each envelope
+            // begins its own trace (linked back to the connect span) instead of nesting under it indefinitely.
+            Activity.Current = null;
+
+            try
+            {
+                string exitReason = await RunReceiveLoopAsync(cancellationToken).ConfigureAwait(false);
+                EasySlackTelemetry.RecordLoopExit(exitReason, null);
+            }
+            catch (Exception exception) when (EasySlackTelemetry.FailLoop(exception))
+            {
+                throw;
+            }
+        }
+
+        private async Task<string> RunReceiveLoopAsync(CancellationToken cancellationToken)
         {
             int reconnectDelayMs = _Options.InitialReconnectDelayMs;
             Log("Receive loop started.");
@@ -488,7 +643,7 @@ namespace EasySlack
                 try
                 {
                     IManagedWebSocket? socket = _WebSocket;
-                    if (socket == null) break;
+                    if (socket == null) return EasySlackTelemetryNames.LoopExitCanceled;
 
                     string payload = await ReceiveTextMessageAsync(socket, cancellationToken).ConfigureAwait(false);
                     if (string.IsNullOrWhiteSpace(payload)) continue;
@@ -499,20 +654,20 @@ namespace EasySlack
                 catch (OperationCanceledException)
                 {
                     Log("Receive loop canceled.");
-                    break;
+                    return EasySlackTelemetryNames.LoopExitCanceled;
                 }
                 catch (WebSocketException exception)
                 {
                     Log("WebSocket exception: " + exception.Message);
                     bool reconnected = await HandleDisconnectAndMaybeReconnectAsync(exception.Message, exception, reconnectDelayMs, cancellationToken).ConfigureAwait(false);
-                    if (!reconnected) break;
+                    if (!reconnected) return EasySlackTelemetryNames.LoopExitNoReconnect;
                     reconnectDelayMs = Math.Min(reconnectDelayMs * 2, _Options.MaxReconnectDelayMs);
                 }
                 catch (IOException exception)
                 {
                     Log("I/O exception in receive loop: " + exception.Message);
                     bool reconnected = await HandleDisconnectAndMaybeReconnectAsync(exception.Message, exception, reconnectDelayMs, cancellationToken).ConfigureAwait(false);
-                    if (!reconnected) break;
+                    if (!reconnected) return EasySlackTelemetryNames.LoopExitNoReconnect;
                     reconnectDelayMs = Math.Min(reconnectDelayMs * 2, _Options.MaxReconnectDelayMs);
                 }
                 catch (JsonException exception)
@@ -524,9 +679,12 @@ namespace EasySlack
                         Description = exception.Message
                     };
 
-                    await InvokeEventHandlersAsync(ActionRequired, eventArgs).ConfigureAwait(false);
+                    EasySlackTelemetry.RecordActionRequired(eventArgs.Code);
+                    await InvokeEventHandlersAsync(ActionRequired, EasySlackTelemetryNames.EventActionRequired, eventArgs).ConfigureAwait(false);
                 }
             }
+
+            return EasySlackTelemetryNames.LoopExitCanceled;
         }
 
         private async Task<bool> HandleDisconnectAndMaybeReconnectAsync(string reason, Exception? exception, int reconnectDelayMs, CancellationToken cancellationToken)
@@ -541,21 +699,26 @@ namespace EasySlack
                 Exception = exception
             };
 
+            EasySlackTelemetry.RecordDisconnect(EasySlackTelemetryNames.DisconnectSourceTransport, willReconnect);
+            using Activity? activity = EasySlackTelemetry.StartDisconnect(EasySlackTelemetryNames.DisconnectSourceTransport, reason, willReconnect, _ConnectionActivityContext);
+            if (exception != null) EasySlackTelemetry.SetTag(activity, EasySlackTelemetryNames.AttributeErrorType, EasySlackTelemetry.ErrorTypeFor(exception));
+
             lock (_StateLock)
             {
-                _ConnectionState = SlackConnectionState.Disconnected;
+                SetStateLocked(SlackConnectionState.Disconnected);
             }
 
-            await InvokeEventHandlersAsync(Disconnected, eventArgs).ConfigureAwait(false);
+            await InvokeEventHandlersAsync(Disconnected, EasySlackTelemetryNames.EventDisconnected, eventArgs).ConfigureAwait(false);
 
             if (!willReconnect) return false;
 
+            EasySlackTelemetry.RecordReconnectDelay(activity, reconnectDelayMs);
             await Task.Delay(reconnectDelayMs, cancellationToken).ConfigureAwait(false);
             DisposeSocket();
 
             lock (_StateLock)
             {
-                _ConnectionState = SlackConnectionState.Connecting;
+                SetStateLocked(SlackConnectionState.Connecting);
             }
 
             await ConnectSocketAsync(true, cancellationToken).ConfigureAwait(false);
@@ -568,21 +731,25 @@ namespace EasySlack
             eventArgs.WillReconnect = willReconnect;
             Log("Slack disconnect envelope received. Will reconnect: " + willReconnect + ". Reason: " + eventArgs.Reason);
 
+            EasySlackTelemetry.RecordDisconnect(EasySlackTelemetryNames.DisconnectSourceServer, willReconnect);
+            using Activity? activity = EasySlackTelemetry.StartDisconnect(EasySlackTelemetryNames.DisconnectSourceServer, eventArgs.Reason, willReconnect, _ConnectionActivityContext);
+
             lock (_StateLock)
             {
-                _ConnectionState = SlackConnectionState.Disconnected;
+                SetStateLocked(SlackConnectionState.Disconnected);
             }
 
-            await InvokeEventHandlersAsync(Disconnected, eventArgs).ConfigureAwait(false);
+            await InvokeEventHandlersAsync(Disconnected, EasySlackTelemetryNames.EventDisconnected, eventArgs).ConfigureAwait(false);
 
             if (!willReconnect) return;
 
+            EasySlackTelemetry.RecordReconnectDelay(activity, _Options.InitialReconnectDelayMs);
             await Task.Delay(_Options.InitialReconnectDelayMs, cancellationToken).ConfigureAwait(false);
             DisposeSocket();
 
             lock (_StateLock)
             {
-                _ConnectionState = SlackConnectionState.Connecting;
+                SetStateLocked(SlackConnectionState.Connecting);
             }
 
             await ConnectSocketAsync(true, cancellationToken).ConfigureAwait(false);
@@ -593,17 +760,22 @@ namespace EasySlack
             if (!string.IsNullOrWhiteSpace(eventArgs.Subtype))
             {
                 Log("Skipping message with subtype " + eventArgs.Subtype + " on channel " + eventArgs.ChannelId + ".");
+                EasySlackTelemetry.RecordMessageDisposition(EasySlackTelemetryNames.DispositionSkippedSubtype);
                 return;
             }
 
             Log("Dispatching message event for channel " + eventArgs.ChannelId + ", user " + eventArgs.UserId + ".");
-            await InvokeEventHandlersAsync(MessageReceived, eventArgs).ConfigureAwait(false);
+            EasySlackTelemetry.RecordMessageDisposition(EasySlackTelemetryNames.DispositionDispatched);
+            EasySlackTelemetry.SetTag(Activity.Current, EasySlackTelemetryNames.AttributeChannelId, eventArgs.ChannelId);
+            EasySlackTelemetry.SetTag(Activity.Current, EasySlackTelemetryNames.AttributeThreaded, !string.IsNullOrWhiteSpace(eventArgs.ThreadTimestamp));
+            await InvokeEventHandlersAsync(MessageReceived, EasySlackTelemetryNames.EventMessageReceived, eventArgs).ConfigureAwait(false);
         }
 
         private async Task HandleActionRequiredAsync(SlackActionRequiredEventArgs eventArgs, CancellationToken cancellationToken)
         {
             Log("Action required: " + eventArgs.Code + ". " + eventArgs.Description);
-            await InvokeEventHandlersAsync(ActionRequired, eventArgs).ConfigureAwait(false);
+            EasySlackTelemetry.RecordActionRequired(eventArgs.Code);
+            await InvokeEventHandlersAsync(ActionRequired, EasySlackTelemetryNames.EventActionRequired, eventArgs).ConfigureAwait(false);
         }
 
         private async Task AcknowledgeEnvelopeAsync(string envelopeId, CancellationToken cancellationToken)
@@ -638,6 +810,8 @@ namespace EasySlack
 
                     if (result.EndOfMessage) break;
                 }
+
+                EasySlackTelemetry.RecordMessageSize(stream.Length);
 
                 return Encoding.UTF8.GetString(stream.ToArray());
             }
@@ -704,35 +878,92 @@ namespace EasySlack
             CancellationToken cancellationToken)
         {
             Log("HTTP " + method.Method + " " + relativePath);
-            using (HttpRequestMessage request = new HttpRequestMessage(method, relativePath))
+
+            string apiMethod = EasySlackTelemetry.ApiMethodFromPath(relativePath);
+            long started = Stopwatch.GetTimestamp();
+            int statusCode = 0;
+            bool recorded = false;
+            using Activity? activity = EasySlackTelemetry.StartApi(apiMethod, method.Method, _HttpClient.BaseAddress);
+
+            try
             {
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
-
-                if (body != null)
+                using (HttpRequestMessage request = new HttpRequestMessage(method, relativePath))
                 {
-                    request.Content = JsonContent.Create(body);
-                }
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
 
-                using (HttpResponseMessage response = await _HttpClient.SendAsync(request, cancellationToken).ConfigureAwait(false))
-                {
-                    Log("HTTP response " + (int)response.StatusCode + " from " + relativePath);
-                    response.EnsureSuccessStatusCode();
-                    string json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                    return JsonDocument.Parse(json);
+                    if (body != null)
+                    {
+                        request.Content = JsonContent.Create(body);
+                    }
+
+                    using (HttpResponseMessage response = await _HttpClient.SendAsync(request, cancellationToken).ConfigureAwait(false))
+                    {
+                        statusCode = (int)response.StatusCode;
+                        Log("HTTP response " + statusCode + " from " + relativePath);
+
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            TimeSpan? retryAfter = response.Headers.RetryAfter?.Delta;
+                            if (retryAfter.HasValue) EasySlackTelemetry.SetTag(activity, EasySlackTelemetryNames.AttributeRetryAfter, retryAfter.Value.TotalSeconds);
+                            EasySlackTelemetry.CompleteApi(activity, apiMethod, started, statusCode, EasySlackTelemetryNames.OutcomeHttpError, statusCode.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                            recorded = true;
+                        }
+
+                        response.EnsureSuccessStatusCode();
+                        string json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                        JsonDocument document = JsonDocument.Parse(json);
+
+                        bool isObject = document.RootElement.ValueKind == JsonValueKind.Object;
+                        if (isObject && ReadBoolean(document.RootElement, "ok"))
+                        {
+                            EasySlackTelemetry.CompleteApi(activity, apiMethod, started, statusCode, EasySlackTelemetryNames.OutcomeSuccess, null);
+                        }
+                        else
+                        {
+                            string errorType = EasySlackTelemetry.NormalizeCode(isObject ? ReadString(document.RootElement, "error") : "invalid_response");
+                            EasySlackTelemetry.CompleteApi(activity, apiMethod, started, statusCode, EasySlackTelemetryNames.OutcomeSlackError, errorType);
+                        }
+
+                        recorded = true;
+                        return document;
+                    }
                 }
+            }
+            catch (Exception exception) when (!recorded && EasySlackTelemetry.FailApi(activity, apiMethod, started, statusCode, exception))
+            {
+                throw;
             }
         }
 
-        private async Task InvokeEventHandlersAsync<TEventArgs>(AsyncEventHandler<TEventArgs>? handlers, TEventArgs eventArgs) where TEventArgs : EventArgs
+        private async Task InvokeEventHandlersAsync<TEventArgs>(AsyncEventHandler<TEventArgs>? handlers, string eventName, TEventArgs eventArgs) where TEventArgs : EventArgs
         {
             if (handlers == null) return;
 
             Delegate[] invocationList = handlers.GetInvocationList();
-            foreach (Delegate entry in invocationList)
+            long started = Stopwatch.GetTimestamp();
+            using Activity? activity = EasySlackTelemetry.StartHandler(eventName, invocationList.Length);
+
+            try
             {
-                AsyncEventHandler<TEventArgs> handler = (AsyncEventHandler<TEventArgs>)entry;
-                await handler(this, eventArgs).ConfigureAwait(false);
+                foreach (Delegate entry in invocationList)
+                {
+                    AsyncEventHandler<TEventArgs> handler = (AsyncEventHandler<TEventArgs>)entry;
+                    await handler(this, eventArgs).ConfigureAwait(false);
+                }
+
+                EasySlackTelemetry.CompleteHandler(activity, eventName, started, EasySlackTelemetryNames.OutcomeSuccess, null);
             }
+            catch (Exception exception) when (EasySlackTelemetry.FailHandler(activity, eventName, started, exception))
+            {
+                throw;
+            }
+        }
+
+        private void SetStateLocked(SlackConnectionState next)
+        {
+            SlackConnectionState previous = _ConnectionState;
+            _ConnectionState = next;
+            EasySlackTelemetry.RecordStateTransition(previous, next);
         }
 
         private void DisposeSocket()

@@ -9,6 +9,8 @@ EasySlack is a native C# Slack connector built directly on Slack Web API and Soc
 - `src/EasySlack`: class library containing the connector, auth/options models, Web API calls, and Socket Mode event handling
 - `src/EasySlackConsole`: interactive console app using `Inputty` for manual Slack testing
 - `src/Test.Automated`: console-based automated test runner with pass/fail output per test, suite summary, total runtime, and failed test enumeration
+- `src/Test.Shared`: runner-agnostic Touchstone test descriptors (including the telemetry suite) shared by every runner
+- `src/Test.Xunit` and `src/Test.Nunit`: xUnit and NUnit adapters that run the shared descriptors under `dotnet test`
 
 ## Current Capabilities
 
@@ -26,6 +28,7 @@ EasySlack is a native C# Slack connector built directly on Slack Web API and Soc
   - connected
   - disconnected
   - action required
+- Emit OpenTelemetry-compatible metrics and traces (Meter and ActivitySource named `EasySlack`) for every Web API call, Socket Mode connect/disconnect/reconnect, the inbound envelope pipeline, and your event handlers. See [TELEMETRY.md](TELEMETRY.md).
 
 ## Slack App Setup
 
@@ -401,6 +404,21 @@ connector.MessageReceived += async (sender, eventArgs) =>
 ```
 
 For top-level Slack messages, `ThreadTimestamp` is usually `null`. Use `eventArgs.ThreadTimestamp ?? eventArgs.Timestamp` when you want a stable conversation key that works for both root posts and replies.
+
+## Telemetry
+
+EasySlack emits metrics and traces through the .NET base class library, so it adds no telemetry dependency and costs effectively nothing when nobody is listening. Subscribe your host's collector to the `EasySlack` meter and activity source to see Slack API latency and errors (by method, Slack error code, and HTTP status), Socket Mode connection health, per-stage inbound processing time, and how long your own handlers take:
+
+```csharp
+RadiantSettings settings = new RadiantSettings("my-slack-bot");
+settings.Sources.AddMeter(EasySlackTelemetryNames.MeterName);
+settings.Sources.AddActivitySource(EasySlackTelemetryNames.ActivitySourceName);
+using RadiantHost host = RadiantHost.Start(settings);
+```
+
+With the OpenTelemetry SDK, use `.AddMeter("EasySlack")` and `.AddSource("EasySlack")`. Outbound calls nest under the caller's current span (for example a Watson request span), and each inbound Socket Mode envelope starts its own trace with `stage:parse`, `stage:ack`, `stage:dispatch`, and `handler:<Event>` child spans.
+
+[TELEMETRY.md](TELEMETRY.md) documents every metric, label, and span, plus recommended PromQL alerts and a dashboard layout.
 
 ## Build
 
